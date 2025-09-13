@@ -40,15 +40,10 @@
   <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
   <button id="babyLockBtn">Enable Baby Lock</button>
   <div id="babyLockInfo">🔒 Baby Lock enabled. To exit: Hold Back + Overview buttons.</div>
-
-  <!-- Canvas -->
   <canvas id="wheelCanvas"></canvas>
 
-  <!-- Safe audio element for pop (no decoding, won’t block) -->
-  <audio id="popAudio" src="bubble-pop-06-351337.mp3" preload="auto"></audio>
-
   <script>
-    /* Dummy ads/IAP so the page runs standalone */
+    /* Dummy ads/IAP */
     function showBanner(){console.log("ads shown");}
     function hideBanner(){console.log("ads hidden");}
     async function initIAP(){return true;}
@@ -56,33 +51,27 @@
     async function checkUnlock(){return false;}
     function enableBabyLock(){alert("Baby lock enabled");}
 
-    const canvas = document.getElementById("wheelCanvas");
-    const ctx = canvas.getContext("2d");
-    const muteBtn = document.getElementById("muteBtn");
-    const volumeSlider = document.getElementById("volumeSlider");
-    const popAudio = document.getElementById("popAudio");
+    const canvas=document.getElementById("wheelCanvas"),ctx=canvas.getContext("2d");
+    const muteBtn=document.getElementById("muteBtn"),volumeSlider=document.getElementById("volumeSlider");
 
-    let radius=100, audioCtx=null, masterGain=null, soundEnabled=true, volume=0.5;
-    let angle=0, spinSpeed=0, friction=0.985, isDragging=false, lastAngle=0, lastTime=0;
-    let glowPulseTime=0, lastSlice=null, lastSoundTime=0;
+    let radius=100,audioCtx=null,masterGain=null,soundEnabled=true,volume=0.5;
+    let angle=0,spinSpeed=0,friction=0.985,isDragging=false,lastAngle=0,lastTime=0,glowPulseTime=0,lastSlice=null,lastSoundTime=0;
 
     const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
     const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
 
     /* ---------- Bubbles + Ripples ---------- */
-    let bubbles = [];
-    let ripples = [];
+    let bubbles=[], ripples=[];
 
     function createBubblesFromSpin() {
-      // Fewer bubbles overall
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
       if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance) {
         const angleOffset = angle + (Math.random()*0.5 - 0.25);
         const spawnRadius = radius + 12;
         const bx = canvas.width/2 + Math.cos(angleOffset)*spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset)*spawnRadius;
-        const size = 70 + Math.random()*30;                     // 70–100px
-        const speed = 0.3 + Math.random()*0.6;                  // slower → longer on screen
+        const size = 70 + Math.random()*30;
+        const speed = 0.3 + Math.random()*0.6;
         const vx = Math.cos(angleOffset)*speed, vy = Math.sin(angleOffset)*speed;
         bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
       }
@@ -127,19 +116,35 @@
       });
     }
 
-    function playBubblePop(x,y){
-      if (!soundEnabled) return;
-      // Safe HTMLAudio playback; reset to start for quick repeats
-      try {
-        popAudio.currentTime = 0;
-        popAudio.volume = Math.min(1, volume*0.8);
-        popAudio.play().catch(()=>{ /* ignore autoplay errors */ });
-      } catch(e){ /* ignore */ }
-      // visual ripple
-      ripples.push({ x, y, radius:20, alpha:0.8 });
+    /* ---------- WebAudio Pop ---------- */
+    let popBuffer=null;
+    async function loadPopSound(){
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      try{
+        const res=await fetch("bubble-pop-06-351337.mp3");
+        const data=await res.arrayBuffer();
+        popBuffer=await audioCtx.decodeAudioData(data);
+        console.log("Bubble pop ready");
+      }catch(e){console.error("Bubble pop load failed",e);}
     }
 
-    // Tap to pop bubbles
+    function playBubblePop(x,y){
+      if(!soundEnabled||!audioCtx||!popBuffer) return;
+      const src=audioCtx.createBufferSource();
+      src.buffer=popBuffer;
+      const gain=audioCtx.createGain();
+      gain.gain.value=volume*0.8;
+      src.connect(gain).connect(masterGain||audioCtx.destination);
+      src.start(0);
+      ripples.push({x,y,radius:20,alpha:0.8});
+    }
+
+    // load sound only after first tap
+    ["mousedown","touchstart"].forEach(evt=>{
+      window.addEventListener(evt,()=>{loadPopSound();},{once:true});
+    });
+
+    // bubble click
     canvas.addEventListener("click",(e)=>{
       const rect=canvas.getBoundingClientRect();
       const x=e.clientX-rect.left, y=e.clientY-rect.top;
@@ -150,7 +155,7 @@
         }
       });
     });
-    /* ---------- Wheel + App ---------- */
+    /* ---------- Wheel + Spin ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
@@ -172,13 +177,11 @@
       glowPulseTime += 0.02;
       const pulse = 50 + Math.sin(glowPulseTime)*10;
 
-      // white halo
       ctx.beginPath();
       ctx.arc(0,0, radius+12, 0, 2*Math.PI);
       ctx.strokeStyle="white"; ctx.lineWidth=4;
       ctx.shadowColor="white"; ctx.shadowBlur=pulse*1.5; ctx.stroke();
 
-      // colored slices
       for(let i=0;i<colors.length;i++){
         ctx.beginPath(); ctx.moveTo(0,0);
         ctx.arc(0,0, radius, (i*2*Math.PI)/colors.length, ((i+1)*2*Math.PI)/colors.length);
@@ -203,13 +206,11 @@
       }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles();
-      drawRipples();
-      drawWheel();
+      drawBubbles(); drawRipples(); drawWheel();
       requestAnimationFrame(animate);
     }
 
-    // Slice tones via WebAudio (created lazily on first need)
+    // slice tones
     function ensureAudio(){
       if (!audioCtx) {
         audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -222,8 +223,7 @@
       if(!soundEnabled) return;
       ensureAudio();
       const freq = (dir==="cw" ? notes[sliceIndex%notes.length] : notes[sliceIndex%notes.length]/2);
-      const osc = audioCtx.createOscillator();
-      const gain= audioCtx.createGain();
+      const osc = audioCtx.createOscillator(), gain=audioCtx.createGain();
       osc.type = (dir==="cw" ? "sine" : "triangle");
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
       if (dir==="cw"){
@@ -240,26 +240,21 @@
       osc.start(); osc.stop(audioCtx.currentTime+0.25);
     }
 
-    // Drag-to-spin
+    // spin control
     function pointerDown(e){
-      isDragging = true;
+      isDragging=true;
       const x = e.touches ? e.touches[0].clientX : e.clientX;
       const y = e.touches ? e.touches[0].clientY : e.clientY;
-      lastAngle = getPointerAngle(x,y);
-      lastTime  = Date.now();
-      spinSpeed = 0;
+      lastAngle = getPointerAngle(x,y); lastTime=Date.now(); spinSpeed=0;
     }
     function pointerMove(e){
       if(!isDragging) return;
       const x = e.touches ? e.touches[0].clientX : e.clientX;
       const y = e.touches ? e.touches[0].clientY : e.clientY;
       const a = getPointerAngle(x,y);
-      const now = Date.now();
-      const d = a - lastAngle;
-      angle += d;
-      spinSpeed = d / ((now-lastTime)/1000);
-      lastAngle = a;
-      lastTime  = now;
+      const now=Date.now(), d=a-lastAngle;
+      angle+=d; spinSpeed=d/((now-lastTime)/1000);
+      lastAngle=a; lastTime=now;
     }
     function pointerUp(){ isDragging=false; }
 
@@ -268,10 +263,8 @@
       muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
     };
     volumeSlider.oninput=e=>{
-      volume = parseFloat(e.target.value);
+      volume=parseFloat(e.target.value);
       if(masterGain){ masterGain.gain.value = volume; }
-      // also keep HTMLAudio volume in sync
-      try { popAudio.volume = Math.min(1, volume*0.8); } catch(_) {}
     };
 
     canvas.addEventListener("mousedown",pointerDown);
@@ -282,9 +275,7 @@
     canvas.addEventListener("touchend",pointerUp);
 
     window.onload = async () => {
-      resizeCanvas();
-      animate();                 // start drawing immediately
-      await initIAP();           // no blocking on audio
+      resizeCanvas(); animate(); await initIAP();
       const unlocked = await checkUnlock();
       if (!unlocked) {
         showBanner();
