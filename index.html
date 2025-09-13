@@ -64,6 +64,10 @@
     let bubbles=[], ripples=[];
     let tapStartX=0, tapStartY=0, tapStartTime=0;
 
+    // Musical scale for bubbles (Do–Re–Mi…)
+    const scale = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+    let bubbleNoteIndex = 0;
+
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
       if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance) {
@@ -117,7 +121,7 @@
       });
     }
 
-    /* ---------- Watery Plop + Plink ---------- */
+    /* ---------- Musical Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -128,57 +132,25 @@
       }
 
       const now = audioCtx.currentTime;
+      const freq = scale[bubbleNoteIndex];
 
-      // Low plop values
-      const startFreq = 250 + Math.random()*50;   // 250–300 Hz
-      const endFreq   = 180 + Math.random()*20;   // 180–200 Hz
-      const decay     = 0.18 + Math.random()*0.05;
-
-      // High plink values
-      const plinkFreq = 800 + Math.random()*400;  // 800–1200 Hz
-      const plinkDecay = 0.08 + Math.random()*0.04;
-
-      // Low plop oscillator
+      // Play scale note
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
-      osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.linearRampToValueAtTime(endFreq, now + decay);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
-
-      // High plink oscillator
-      const osc2 = audioCtx.createOscillator();
-      const gain2 = audioCtx.createGain();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(plinkFreq, now);
-      gain2.gain.setValueAtTime(0.07, now);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + plinkDecay);
-
-      // Echo for watery resonance
-      const delay = audioCtx.createDelay();
-      delay.delayTime.value = 0.15;
-      const echoGain = audioCtx.createGain();
-      echoGain.gain.value = 0.07;
-
-      // Connect graph
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
       osc.connect(gain);
       gain.connect(masterGain);
-      gain.connect(delay);
-      delay.connect(echoGain);
-      echoGain.connect(masterGain);
-
-      osc2.connect(gain2);
-      gain2.connect(masterGain);
-
-      // Start & stop
       osc.start(now);
-      osc.stop(now + decay);
-      osc2.start(now);
-      osc2.stop(now + plinkDecay);
+      osc.stop(now + 0.5);
 
-      // Ripple effect
+      // Ripple visual
       ripples.push({ x, y, radius:20, alpha:0.8 });
+
+      // Advance to next note
+      bubbleNoteIndex = (bubbleNoteIndex + 1) % scale.length;
     }
 
     /* ---------- Wheel ---------- */
