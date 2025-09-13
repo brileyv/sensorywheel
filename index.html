@@ -66,25 +66,11 @@
     let bubbles=[], ripples=[];
 
     function createBubblesBackground() {
-      if (bubbles.length >= 60) return; // cap ~60
-
       const size = 70 + Math.random()*40; // 70–110px
       const speed = 1.0 + Math.random()*1.0; // 1.0–2.0
       const x = Math.random()*canvas.width;
 
-      // avoid clustering
-      let tooClose = false;
-      for (let b of bubbles) {
-        const dist = Math.abs(b.x - x);
-        if (dist < b.r + size + 20) {
-          tooClose = true;
-          break;
-        }
-      }
-
-      if (!tooClose) {
-        bubbles.push({ x, y: -size, r:size, vy:speed, popped:false });
-      }
+      bubbles.push({ x, y: -size, r:size, vy:speed, popped:false });
     }
 
     function drawBubbles(){
@@ -213,17 +199,11 @@
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBubbles(); drawRipples(); drawWheel();
 
-      // ensure minimum bubble count
-      if (bubbles.length < 40) {
-        for (let i = 0; i < 5; i++) createBubblesBackground();
-      }
-
       requestAnimationFrame(animate);
     }
 
     /* ---------- Wheel controls (single-finger spin, multi-finger pops) ---------- */
     let activeFingerId = null;
-    let tapStartX=0,tapStartY=0,tapStartTime=0;
 
     function getPointerAngle(x,y){
       const r=canvas.getBoundingClientRect();
@@ -253,8 +233,6 @@
           }
         });
       }
-
-      tapStartX=x; tapStartY=y; tapStartTime=Date.now();
     }
 
     function pointerMove(e){
@@ -303,8 +281,8 @@
     /* ---------- Start ---------- */
     window.onload=async()=>{
       resizeCanvas(); animate();
-      for (let i=0; i<40; i++) createBubblesBackground();
-      setInterval(() => { createBubblesBackground(); }, 200);
+      // Create 60 bubbles immediately
+      for (let i=0; i<60; i++) createBubblesBackground();
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
