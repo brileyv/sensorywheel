@@ -53,9 +53,14 @@
   <div id="babyLockInfo">🔒 Baby Lock enabled. To exit: Hold Back + Overview buttons.</div>
   <canvas id="wheelCanvas"></canvas>
 
-  <script type="module">
-    import { showBanner, hideBanner } from "./ads.js";
-    import { initIAP, buyUnlock, checkUnlock, enableBabyLock } from "./iap.js";
+  <script>
+    // Dummy ads/IAP for now (prevents script errors)
+    function showBanner(){console.log("ads shown");}
+    function hideBanner(){console.log("ads hidden");}
+    async function initIAP(){return true;}
+    async function buyUnlock(){alert("Simulated purchase");}
+    async function checkUnlock(){return false;}
+    function enableBabyLock(){alert("Baby lock enabled");}
 
     const canvas=document.getElementById("wheelCanvas"),ctx=canvas.getContext("2d");
     const muteBtn=document.getElementById("muteBtn"),volumeSlider=document.getElementById("volumeSlider");
@@ -67,8 +72,7 @@
     const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
 
     /* ---------- Bubbles + Ripples ---------- */
-    let bubbles = [];
-    let ripples = [];
+    let bubbles=[], ripples=[];
 
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
@@ -77,75 +81,64 @@
         const spawnRadius = radius + 12;
         const bx = canvas.width/2 + Math.cos(angleOffset) * spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset) * spawnRadius;
-
         const size = 70 + Math.random() * 30;
         const speed = 0.3 + Math.random() * 0.6;
         const vx = Math.cos(angleOffset) * speed;
         const vy = Math.sin(angleOffset) * speed;
-
         bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
       }
     }
 
     function drawBubbles() {
-      bubbles.forEach((b, i) => {
+      bubbles.forEach((b,i)=>{
         if (b.popped) return;
-
-        const grad = ctx.createRadialGradient(b.x, b.y, b.r*0.6, b.x, b.y, b.r);
+        const grad=ctx.createRadialGradient(b.x,b.y,b.r*0.6,b.x,b.y,b.r);
         grad.addColorStop(0,"rgba(255,255,255,0.05)");
         grad.addColorStop(0.7,"rgba(255,255,255,0.1)");
         grad.addColorStop(1,"rgba(255,255,255,0.25)");
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
+        ctx.fillStyle=grad; ctx.fill();
 
-        ctx.beginPath();
-        ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
-        ctx.fillStyle=grad;
-        ctx.fill();
-
-        const rainbow = ctx.createLinearGradient(b.x-b.r,b.y-b.r,b.x+b.r,b.y+b.r);
+        const rainbow=ctx.createLinearGradient(b.x-b.r,b.y-b.r,b.x+b.r,b.y+b.r);
         rainbow.addColorStop(0,"rgba(255,0,255,0.22)");
         rainbow.addColorStop(0.25,"rgba(0,255,255,0.22)");
         rainbow.addColorStop(0.5,"rgba(0,255,0,0.18)");
         rainbow.addColorStop(0.75,"rgba(255,255,0,0.22)");
         rainbow.addColorStop(1,"rgba(255,0,0,0.22)");
-        ctx.strokeStyle=rainbow;
-        ctx.lineWidth=2;
-        ctx.stroke();
+        ctx.strokeStyle=rainbow; ctx.lineWidth=2; ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(b.x - b.r*0.3,b.y - b.r*0.3,b.r*0.2,0,2*Math.PI);
-        ctx.fillStyle="rgba(255,255,255,0.35)";
-        ctx.fill();
+        ctx.arc(b.x-b.r*0.3,b.y-b.r*0.3,b.r*0.2,0,2*Math.PI);
+        ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.fill();
 
         b.x+=b.vx; b.y+=b.vy;
-
-        if (b.x+b.r<0 || b.x-b.r>canvas.width || b.y+b.r<0 || b.y-b.r>canvas.height) {
+        if(b.x+b.r<0||b.x-b.r>canvas.width||b.y+b.r<0||b.y-b.r>canvas.height){
           bubbles.splice(i,1);
         }
       });
     }
 
-    function drawRipples() {
-      ripples.forEach((r, i) => {
-        ctx.beginPath();
-        ctx.arc(r.x, r.y, r.radius, 0, 2 * Math.PI);
-        ctx.strokeStyle = `rgba(255,255,255,${r.alpha})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        r.radius += 2;
-        r.alpha -= 0.03;
-        if (r.alpha <= 0) ripples.splice(i, 1);
+    function drawRipples(){
+      ripples.forEach((r,i)=>{
+        ctx.beginPath(); ctx.arc(r.x,r.y,r.radius,0,2*Math.PI);
+        ctx.strokeStyle=`rgba(255,255,255,${r.alpha})`;
+        ctx.lineWidth=3; ctx.stroke();
+        r.radius+=2; r.alpha-=0.03;
+        if(r.alpha<=0) ripples.splice(i,1);
       });
     }
 
     /* ---------- MP3 Pop ---------- */
-    let popBuffer=null;
+    let popBuffer=null, popLoaded=false;
     async function loadPopSound(){
-      try {
-        if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(popLoaded) return;
+      try{
         const res=await fetch("bubble-pop-06-351337.mp3");
         const data=await res.arrayBuffer();
         popBuffer=await audioCtx.decodeAudioData(data);
-      } catch(e){ console.error("Pop sound load failed", e); }
+        popLoaded=true;
+      }catch(e){console.error("Pop load failed",e);}
     }
 
     function playBubblePop(x,y){
@@ -156,19 +149,21 @@
       gain.gain.value=volume*0.8;
       src.connect(gain).connect(masterGain||audioCtx.destination);
       src.start(0);
-
-      // add visual ripple
-      ripples.push({ x, y, radius:20, alpha:0.8 });
+      ripples.push({x,y,radius:20,alpha:0.8});
     }
+
+    // load MP3 only after first tap
+    ["mousedown","touchstart"].forEach(evt=>{
+      window.addEventListener(evt, loadPopSound, {once:true});
+    });
 
     canvas.addEventListener("click",(e)=>{
       const rect=canvas.getBoundingClientRect();
-      const x=e.clientX-rect.left;
-      const y=e.clientY-rect.top;
+      const x=e.clientX-rect.left, y=e.clientY-rect.top;
       bubbles.forEach(b=>{
         if(!b.popped){
           const dist=Math.hypot(b.x-x,b.y-y);
-          if(dist<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
+          if(dist<b.r){b.popped=true; playBubblePop(b.x,b.y);}
         }
       });
     });
@@ -186,29 +181,16 @@
     }
 
     function drawWheel(){
-      ctx.save();
-      ctx.translate(canvas.width/2,canvas.height/2);
-      ctx.rotate(angle);
-      glowPulseTime+=0.02;
-      const pulse=50+Math.sin(glowPulseTime)*10;
-
-      ctx.beginPath();
-      ctx.arc(0,0,radius+12,0,2*Math.PI);
-      ctx.strokeStyle="white";
-      ctx.lineWidth=4;
-      ctx.shadowColor="white";
-      ctx.shadowBlur=pulse*1.5;
-      ctx.stroke();
-
+      ctx.save(); ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(angle);
+      glowPulseTime+=0.02; const pulse=50+Math.sin(glowPulseTime)*10;
+      ctx.beginPath(); ctx.arc(0,0,radius+12,0,2*Math.PI);
+      ctx.strokeStyle="white"; ctx.lineWidth=4;
+      ctx.shadowColor="white"; ctx.shadowBlur=pulse*1.5; ctx.stroke();
       for(let i=0;i<colors.length;i++){
-        ctx.beginPath();
-        ctx.moveTo(0,0);
+        ctx.beginPath(); ctx.moveTo(0,0);
         ctx.arc(0,0,radius,(i*2*Math.PI)/colors.length,((i+1)*2*Math.PI)/colors.length);
-        ctx.closePath();
-        ctx.fillStyle=colors[i];
-        ctx.shadowColor=colors[i];
-        ctx.shadowBlur=pulse;
-        ctx.fill();
+        ctx.closePath(); ctx.fillStyle=colors[i];
+        ctx.shadowColor=colors[i]; ctx.shadowBlur=pulse; ctx.fill();
       }
       ctx.restore();
     }
@@ -227,9 +209,7 @@
       }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles();
-      drawRipples();  // ripple animations
-      drawWheel();
+      drawBubbles(); drawRipples(); drawWheel();
       requestAnimationFrame(animate);
     }
 
@@ -288,10 +268,7 @@
     canvas.addEventListener("touchend",pointerUp);
 
     window.onload = async () => {
-      resizeCanvas();
-      animate();         // start wheel immediately
-      loadPopSound();    // load MP3 async
-      await initIAP();
+      resizeCanvas(); animate(); await initIAP();
       const unlocked = await checkUnlock();
       if (!unlocked) {
         showBanner();
