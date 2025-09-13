@@ -117,7 +117,7 @@
       });
     }
 
-    /* ---------- Randomized Watery Drip ---------- */
+    /* ---------- Soft Watery Plop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -129,28 +129,27 @@
 
       const now = audioCtx.currentTime;
 
-      // randomized drip values
-      const startFreq = 500 + Math.random()*300;   // Hz
-      const endFreq = 150 + Math.random()*150;     // Hz
-      const decay = 0.2 + Math.random()*0.1;       // seconds
-      const echoDelay = 0.1 + Math.random()*0.05;  // seconds
-      const echoVol = 0.05 + Math.random()*0.1;
+      // Gentle drip values
+      const startFreq = 250 + Math.random()*50;   // 250–300 Hz
+      const endFreq   = 180 + Math.random()*20;   // 180–200 Hz
+      const decay     = 0.18 + Math.random()*0.05;
 
-      // droplet sine sweep
+      // Oscillator
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(endFreq, now + decay);
+      osc.frequency.linearRampToValueAtTime(endFreq, now + decay);
 
-      gain.gain.setValueAtTime(0.3, now);
+      // Gentle volume envelope
+      gain.gain.setValueAtTime(0.15, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
 
-      // subtle randomized echo
+      // Echo
       const delay = audioCtx.createDelay();
-      delay.delayTime.value = echoDelay;
+      delay.delayTime.value = 0.15;
       const echoGain = audioCtx.createGain();
-      echoGain.gain.value = echoVol;
+      echoGain.gain.value = 0.07;
 
       osc.connect(gain);
       gain.connect(masterGain);
