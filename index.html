@@ -62,20 +62,35 @@
     let wheelNoteIndex = 0;
     let bubbleNoteIndex = 0;
 
-    /* ---------- Staggered Bubble Rain ---------- */
+    /* ---------- Staggered Non-Overlapping Bubbles ---------- */
     let bubbles=[], ripples=[];
     const bubbleCount = 30;
     const minSize = 70, maxSize = 110;
-    const minSpeed = 0.5, maxSpeed = 1.5;
+    const minSpeed = 0.2, maxSpeed = 0.6;  // slower floaty bubbles
 
     function newBubble() {
-      return {
-        x: Math.random()*canvas.width,
-        y: -Math.random()*100,
-        r: minSize + Math.random()*(maxSize-minSize),
-        vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
-        drift: (Math.random()*0.6 - 0.3)
-      };
+      let safe = false;
+      let bubble;
+      let attempts = 0;
+      while (!safe && attempts < 50) {   // retry up to 50 times
+        bubble = {
+          x: Math.random()*canvas.width,
+          y: -Math.random()*100,
+          r: minSize + Math.random()*(maxSize-minSize),
+          vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
+          drift: (Math.random()*0.6 - 0.3)
+        };
+        safe = true;
+        for (let other of bubbles) {
+          const dist = Math.hypot(bubble.x - other.x, bubble.y - other.y);
+          if (dist < bubble.r + other.r + 10) { // 10px buffer
+            safe = false;
+            break;
+          }
+        }
+        attempts++;
+      }
+      return bubble;
     }
 
     function initBubbles() {
@@ -86,7 +101,7 @@
         } else {
           clearInterval(spawnInterval);
         }
-      }, 800); // spawn one every 0.8s
+      }, 400); // spawn one every 0.4s
     }
 
     function drawBubbles(){
@@ -99,11 +114,10 @@
         ctx.fillStyle=g;
         ctx.fill();
 
-        // movement
         b.y += b.vy;
         b.x += b.drift;
 
-        // recycle at bottom
+        // recycle safely when off bottom
         if (b.y - b.r > canvas.height) {
           bubbles[i] = newBubble();
           bubbles[i].y = -b.r;
@@ -193,7 +207,6 @@
     function animate(){
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
 
-      // wheel sounds
       const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
       const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
       const now=performance.now();
