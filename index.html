@@ -66,16 +66,16 @@
     let bubbles=[], ripples=[];
     const bubbleCount = 30;
     const minSize = 70, maxSize = 110;
-    const minSpeed = 0.2, maxSpeed = 0.6;  // slower floaty bubbles
+    const minSpeed = 0.2, maxSpeed = 0.6;
 
     function newBubble() {
       let safe = false;
       let bubble;
       let attempts = 0;
-      while (!safe && attempts < 50) {   // retry up to 50 times
+      while (!safe && attempts < 50) {
         bubble = {
-          x: Math.random()*canvas.width,
-          y: -Math.random()*100,
+          x: Math.random() * (canvas.width - maxSize*2) + maxSize, // keep inside screen
+          y: -Math.random()*150,
           r: minSize + Math.random()*(maxSize-minSize),
           vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
           drift: (Math.random()*0.6 - 0.3)
@@ -83,7 +83,7 @@
         safe = true;
         for (let other of bubbles) {
           const dist = Math.hypot(bubble.x - other.x, bubble.y - other.y);
-          if (dist < bubble.r + other.r + 10) { // 10px buffer
+          if (dist < bubble.r + other.r + 10) {
             safe = false;
             break;
           }
@@ -101,7 +101,7 @@
         } else {
           clearInterval(spawnInterval);
         }
-      }, 400); // spawn one every 0.4s
+      }, 900); // slower staggered spawn for smoother entrance
     }
 
     function drawBubbles(){
@@ -117,7 +117,6 @@
         b.y += b.vy;
         b.x += b.drift;
 
-        // recycle safely when off bottom
         if (b.y - b.r > canvas.height) {
           bubbles[i] = newBubble();
           bubbles[i].y = -b.r;
@@ -163,20 +162,16 @@
     function playBubblePop(x,y){
       const freq = scale[bubbleNoteIndex];
       ensureAudio();
-
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
       gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-
       osc.connect(gain);
       gain.connect(masterGain);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.5);
-
       ripples.push({ x, y, radius:20, alpha:0.8 });
       bubbleNoteIndex = (bubbleNoteIndex + 1) % scale.length;
     }
@@ -206,11 +201,9 @@
 
     function animate(){
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
-
       const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
       const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
       const now=performance.now();
-
       if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>120){
         if(spinSpeed > 0){
           playNote(scale[wheelNoteIndex],"sine");
@@ -222,10 +215,8 @@
         lastSlice=currentSlice;
         lastSoundTime=now;
       }
-
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBubbles(); drawRipples(); drawWheel();
-
       requestAnimationFrame(animate);
     }
 
@@ -243,7 +234,6 @@
       const x=(e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
       const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
       const dx=x-canvas.width/2, dy=y-canvas.height/2;
-
       if (Math.hypot(dx,dy) <= radius && activeFingerId === null) {
         isDragging=true;
         activeFingerId = e.pointerId || (e.changedTouches && e.changedTouches[0].identifier);
@@ -262,7 +252,6 @@
       if(!isDragging) return;
       if (e.pointerId && e.pointerId !== activeFingerId) return;
       if (e.changedTouches && e.changedTouches[0].identifier !== activeFingerId) return;
-
       const rect=canvas.getBoundingClientRect();
       const x=(e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
       const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
@@ -277,12 +266,10 @@
 
     function pointerUp(e){
       if (e.pointerId && e.pointerId === activeFingerId) {
-        isDragging=false;
-        activeFingerId=null;
+        isDragging=false; activeFingerId=null;
       }
       if (e.changedTouches && e.changedTouches[0].identifier === activeFingerId) {
-        isDragging=false;
-        activeFingerId=null;
+        isDragging=false; activeFingerId=null;
       }
     }
 
@@ -303,8 +290,7 @@
 
     /* ---------- Start ---------- */
     window.onload=async()=>{
-      resizeCanvas(); animate();
-      initBubbles();
+      resizeCanvas(); animate(); initBubbles();
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
