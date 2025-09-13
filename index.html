@@ -63,6 +63,7 @@
     /* ---------- Bubbles + Ripples ---------- */
     let bubbles=[], ripples=[];
     let tapStartX=0, tapStartY=0, tapStartTime=0;
+    let bubbleAudio = null;
 
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
@@ -117,50 +118,20 @@
       });
     }
 
-    /* ---------- Natural Bubble Pop ---------- */
+    /* ---------- Bubble Pop using MP3 ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = volume;
-        masterGain.connect(audioCtx.destination);
+      if (!bubbleAudio) {
+        bubbleAudio = new Audio("bubble-pop.mp3");
       }
+      const pop = bubbleAudio.cloneNode();
+      pop.volume = volume;
+      pop.play();
 
-      const now = audioCtx.currentTime;
-
-      // short noise burst for "air pop"
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length); // fade out
-      }
-      const noise = audioCtx.createBufferSource();
-      noise.buffer = buffer;
-      const noiseGain = audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.3 + Math.random()*0.2, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-      noise.connect(noiseGain).connect(masterGain);
-      noise.start(now);
-      noise.stop(now + 0.1);
-
-      // quick sine "plop"
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(300 + Math.random()*50, now);
-      osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-      osc.connect(gain).connect(masterGain);
-      osc.start(now);
-      osc.stop(now + 0.15);
-
-      // visual ripple
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
-    /* ---------- Wheel + Spin with Tap-to-Pop ---------- */
+    /* ---------- Wheel Drawing ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
@@ -240,7 +211,7 @@
       osc.start(); osc.stop(audioCtx.currentTime+0.25);
     }
 
-    // --- Tap-to-pop logic ---
+    // --- Pointer logic (no tap while spinning) ---
     let activeTouches=[];
 
     function pointerDown(e){
@@ -276,8 +247,8 @@
         const dist=Math.hypot(dx,dy);
         const time=Date.now()-tapStartTime;
 
-        // Only treat as tap if not a drag
-        if(dist < 15 && time < 250){
+        // Only tap if not spinning
+        if(Math.abs(spinSpeed) < 0.01 && dist < 15 && time < 250){
           bubbles.forEach(b=>{
             if(!b.popped){
               const d=Math.hypot(b.x-x,b.y-y);
