@@ -68,31 +68,49 @@
     const scale = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
     let bubbleNoteIndex = 0;
 
-    function createBubblesFromSpin() {
-      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.07, 0.3); // higher spawn rate
-      if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance && bubbles.length < 20) {
-        const angleOffset = angle + (Math.random()*2*Math.PI); // anywhere around wheel
-        const spawnRadius = radius + 12;
-        const bx = canvas.width/2 + Math.cos(angleOffset)*spawnRadius;
-        const by = canvas.height/2 + Math.sin(angleOffset)*spawnRadius;
+    function createBubblesBackground() {
+      if (bubbles.length >= 18) return; // cap at ~18 bubbles
 
-        const size = 90 + Math.random()*40; // bigger bubbles (90–130px)
-        const speed = 0.1 + Math.random()*0.3; // slower so they linger
-        const vx = Math.cos(angleOffset)*speed, vy = Math.sin(angleOffset)*speed;
+      const edge = Math.floor(Math.random()*4); // 0=top,1=right,2=bottom,3=left
+      let bx, by, vx, vy;
 
-        // --- prevent clustering ---
-        let tooClose = false;
-        for (let b of bubbles) {
-          const dist = Math.hypot(b.x - bx, b.y - by);
-          if (dist < b.r + size + 25) { // buffer
-            tooClose = true;
-            break;
-          }
+      const size = 90 + Math.random()*40; // larger bubbles
+      const speed = 0.2 + Math.random()*0.4; // natural pace
+
+      if (edge === 0) { // top
+        bx = Math.random()*canvas.width;
+        by = -size;
+        vx = (Math.random()-0.5)*0.3;
+        vy = speed;
+      } else if (edge === 1) { // right
+        bx = canvas.width + size;
+        by = Math.random()*canvas.height;
+        vx = -speed;
+        vy = (Math.random()-0.5)*0.3;
+      } else if (edge === 2) { // bottom
+        bx = Math.random()*canvas.width;
+        by = canvas.height + size;
+        vx = (Math.random()-0.5)*0.3;
+        vy = -speed;
+      } else { // left
+        bx = -size;
+        by = Math.random()*canvas.height;
+        vx = speed;
+        vy = (Math.random()-0.5)*0.3;
+      }
+
+      // --- prevent overlapping spawn ---
+      let tooClose = false;
+      for (let b of bubbles) {
+        const dist = Math.hypot(b.x - bx, b.y - by);
+        if (dist < b.r + size + 30) {
+          tooClose = true;
+          break;
         }
+      }
 
-        if (!tooClose) {
-          bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
-        }
+      if (!tooClose) {
+        bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
       }
     }
 
@@ -148,7 +166,6 @@
       const now = audioCtx.currentTime;
       const freq = scale[bubbleNoteIndex];
 
-      // Play scale note
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
@@ -160,10 +177,8 @@
       osc.start(now);
       osc.stop(now + 0.5);
 
-      // Ripple visual
       ripples.push({ x, y, radius:20, alpha:0.8 });
 
-      // Advance to next note
       bubbleNoteIndex = (bubbleNoteIndex + 1) % scale.length;
     }
 
@@ -209,15 +224,6 @@
 
     function animate(){
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
-      createBubblesFromSpin();
-
-      const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
-      const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
-      const now=performance.now();
-      if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
-        playSliceTone(currentSlice, spinSpeed>0?"cw":"ccw");
-        lastSlice=currentSlice; lastSoundTime=now;
-      }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBubbles(); drawRipples(); drawWheel();
@@ -321,6 +327,7 @@
 
     window.onload=async()=>{
       resizeCanvas(); animate();
+      setInterval(createBubblesBackground, 1200); // steady bubbles
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
