@@ -15,7 +15,7 @@
     }
     canvas {
       display: block;
-      touch-action: none;
+      touch-action: none; /* prevents pinch/zoom */
     }
     #muteBtn {
       position: absolute;
@@ -30,35 +30,45 @@
       cursor: pointer;
       box-shadow: 0 0 8px rgba(0,0,0,0.3);
     }
+    #volumeSlider {
+      position: absolute;
+      top: 55px;
+      right: 15px;
+      width: 120px;
+    }
   </style>
 </head>
 <body>
   <button id="muteBtn">🔊 Sound On</button>
+  <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
   <canvas id="wheelCanvas"></canvas>
 
   <script>
     const canvas = document.getElementById("wheelCanvas");
     const ctx = canvas.getContext("2d");
     const muteBtn = document.getElementById("muteBtn");
+    const volumeSlider = document.getElementById("volumeSlider");
 
-    // Fullscreen canvas
+    // Resize canvas to fullscreen
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      radius = Math.min(canvas.width, canvas.height) * 0.45;
     }
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
-    let radius = Math.min(canvas.width, canvas.height) * 0.45; // big, 90% of screen size
+    let radius;
     const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
-    // Notes for clockwise
+    // Notes
     const notes = [261.63, 293.66, 329.63, 392.0, 440.0, 493.88, 523.25];
-    // Lower pad-like tones for counterclockwise
     const counterNotes = [174.61, 196.0, 220.0, 246.94, 261.63, 293.66, 329.63];
 
     let audioCtx = null;
+    let masterGain = null;
     let soundEnabled = true;
+    let volume = 0.5;
 
     let angle = 0;
     let spinSpeed = 0;
@@ -126,9 +136,9 @@
 
       if (currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05) {
         if (spinSpeed > 0) {
-          playTone(notes[currentSlice % notes.length], 0.15, "sine");
+          playTone(notes[currentSlice % notes.length], 0.15, "sine", "cw");
         } else {
-          playTone(counterNotes[currentSlice % counterNotes.length], 0.25, "triangle");
+          playTone(counterNotes[currentSlice % counterNotes.length], 0.4, "triangle", "ccw");
         }
         lastSlice = currentSlice;
       }
@@ -137,24 +147,67 @@
       requestAnimationFrame(animate);
     }
 
-    function playTone(freq, duration, type) {
+    function playTone(freq, duration, type, direction = "cw") {
       if (!soundEnabled) return;
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volume;
+        masterGain.connect(audioCtx.destination);
+      }
 
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      if (direction === "cw") {
+        // CLOCKWISE = musical tone
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
 
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
 
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+        gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + duration - 0.05);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
 
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(masterGain);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } else {
+        // COUNTERCLOCKWISE = soft whoosh
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+
+        const gain = audioCtx.createGain();
+
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.05);
+        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + duration - 0.1);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+
+        noise.start();
+        noise.stop(audioCtx.currentTime + duration);
+      }
     }
 
+    // Pointer handling
     function pointerDown(e) {
       isDragging = true;
       lastAngle = getPointerAngle(
@@ -185,9 +238,17 @@
       isDragging = false;
     }
 
+    // Controls
     muteBtn.addEventListener("click", () => {
       soundEnabled = !soundEnabled;
       muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
+    });
+
+    volumeSlider.addEventListener("input", (e) => {
+      volume = parseFloat(e.target.value);
+      if (masterGain) {
+        masterGain.gain.value = volume;
+      }
     });
 
     canvas.addEventListener("mousedown", pointerDown);
