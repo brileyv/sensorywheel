@@ -15,7 +15,7 @@
     }
     canvas {
       display: block;
-      touch-action: none; /* prevents pinch/zoom */
+      touch-action: none;
     }
     #muteBtn {
       position: absolute;
@@ -49,22 +49,19 @@
     const muteBtn = document.getElementById("muteBtn");
     const volumeSlider = document.getElementById("volumeSlider");
 
-    // Wheel radius
-    let radius = 100; // safe default
+    let radius = 100;
 
-    // Resize canvas fullscreen
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      radius = Math.min(canvas.width, canvas.height) * 0.45;
+      canvas.width = window.innerWidth || 600;
+      canvas.height = window.innerHeight || 600;
+      const minSide = Math.min(canvas.width, canvas.height);
+      radius = (minSide > 0 ? minSide : 600) * 0.45;
     }
     window.addEventListener("resize", resizeCanvas);
 
     const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
-    // Notes
     const notes = [261.63, 293.66, 329.63, 392.0, 440.0, 493.88, 523.25];
-    const counterNotes = [174.61, 196.0, 220.0, 246.94, 261.63, 293.66, 329.63];
 
     let audioCtx = null;
     let masterGain = null;
@@ -81,7 +78,7 @@
 
     let glowPulseTime = 0;
     let lastSlice = null;
-    let lastSoundTime = 0; // for throttling sounds
+    let lastSoundTime = 0;
 
     function getPointerAngle(x, y) {
       const rect = canvas.getBoundingClientRect();
@@ -139,9 +136,9 @@
       const now = performance.now();
       if (currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 100) {
         if (spinSpeed > 0) {
-          playTone(notes[currentSlice % notes.length], 0.2, "sine", "cw");
+          playTone(notes[currentSlice % notes.length], 0.25, "sine", "cw");  // bell
         } else {
-          playTone(counterNotes[currentSlice % counterNotes.length], 0.6, "triangle", "ccw");
+          playTone(notes[currentSlice % notes.length] / 2, 0.3, "triangle", "ccw"); // marimba pluck
         }
         lastSlice = currentSlice;
         lastSoundTime = now;
@@ -160,56 +157,30 @@
         masterGain.connect(audioCtx.destination);
       }
 
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
       if (direction === "cw") {
-        // CLOCKWISE = musical tone
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
+        // Clockwise = bright bell
         gain.gain.setValueAtTime(0, audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
         gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + duration - 0.05);
         gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
       } else {
-        // COUNTERCLOCKWISE = soft whoosh
-        const bufferSize = 2 * audioCtx.sampleRate;
-        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-
-        for (let i = 0; i < bufferSize; i++) {
-          output[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(800, audioCtx.currentTime);
-
-        const gain = audioCtx.createGain();
-
-        // Longer envelope for smoothness
+        // Counterclockwise = marimba-like pluck
         gain.gain.setValueAtTime(0, audioCtx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.1);
-        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + duration - 0.2);
-        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(masterGain);
-
-        noise.start();
-        noise.stop(audioCtx.currentTime + duration);
+        gain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
       }
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
     }
 
     // Pointer handling
@@ -264,9 +235,10 @@
     canvas.addEventListener("touchmove", pointerMove);
     canvas.addEventListener("touchend", pointerUp);
 
-    // ✅ Ensure resize before animation
-    resizeCanvas();
-    animate();
+    window.onload = () => {
+      resizeCanvas();
+      animate();
+    };
   </script>
 </body>
 </html>
