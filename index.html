@@ -129,31 +129,32 @@
 
       const now = audioCtx.currentTime;
 
-      // sharp noise snap
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.06, audioCtx.sampleRate);
+      // airy hiss
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/data.length, 0.3);
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
       }
       const noise = audioCtx.createBufferSource();
       noise.buffer = buffer;
       const noiseGain = audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.25 + Math.random()*0.1, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      noiseGain.gain.setValueAtTime(0.2 + Math.random()*0.1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
       noise.connect(noiseGain).connect(masterGain);
       noise.start(now);
-      noise.stop(now + 0.06);
+      noise.stop(now + 0.1);
 
       // soft low plop
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
-      osc.frequency.setValueAtTime(120 + Math.random()*20, now);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.frequency.setValueAtTime(150 + Math.random()*40, now);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       osc.connect(gain).connect(masterGain);
       osc.start(now);
-      osc.stop(now + 0.08);
+      osc.stop(now + 0.12);
 
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
