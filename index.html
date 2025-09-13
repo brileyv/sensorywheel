@@ -15,7 +15,7 @@
     }
     canvas {
       display: block;
-      touch-action: none;
+      touch-action: none; /* prevents pinch/zoom on touch devices */
     }
     #muteBtn {
       position: absolute;
@@ -41,11 +41,11 @@
     const ctx = canvas.getContext("2d");
     const muteBtn = document.getElementById("muteBtn");
 
-    const radius = 250;
+    const radius = 250; // fixed, never resizes
     const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
-    // Musical notes (C major scale, soothing bell-like)
-    const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 493.88, 523.25]; 
+    // Musical notes
+    const notes = [261.63, 293.66, 329.63, 392.0, 440.0, 493.88, 523.25];
     let audioCtx = null;
     let soundEnabled = true;
 
@@ -57,10 +57,10 @@
     let lastAngle = 0;
     let lastTime = 0;
 
-    // Glow pulse
+    // glow pulse
     let glowPulseTime = 0;
 
-    // Track last slice index for sound
+    // track slice for sound
     let lastSlice = null;
 
     function getPointerAngle(x, y) {
@@ -95,7 +95,6 @@
         ctx.fill();
       }
 
-      // Outer glowing border
       ctx.beginPath();
       ctx.arc(0, 0, radius + 5, 0, 2 * Math.PI);
       ctx.strokeStyle = "#ffffff";
@@ -113,7 +112,7 @@
         spinSpeed *= friction;
       }
 
-      // Play sound when crossing into a new slice
+      // detect slice & play sound
       const numSlices = colors.length;
       const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       const currentSlice = Math.floor((normalized / (2 * Math.PI)) * numSlices);
@@ -127,7 +126,7 @@
       requestAnimationFrame(animate);
     }
 
-    // Audio helper
+    // sound helper
     function playTone(freq, duration) {
       if (!soundEnabled) return;
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -146,7 +145,7 @@
       osc.stop(audioCtx.currentTime + duration);
     }
 
-    // Pointer events
+    // gestures
     function pointerDown(e) {
       isDragging = true;
       lastAngle = getPointerAngle(
@@ -154,7 +153,7 @@
         e.clientY || e.touches[0].clientY
       );
       lastTime = Date.now();
-      spinSpeed = 0;
+      spinSpeed = 0; // stop auto spin while dragging
     }
 
     function pointerMove(e) {
@@ -166,7 +165,9 @@
       const now = Date.now();
       const deltaAngle = currentAngle - lastAngle;
 
+      // apply exact finger movement
       angle += deltaAngle;
+      // compute speed for when they let go
       spinSpeed = deltaAngle / ((now - lastTime) / 1000);
 
       lastAngle = currentAngle;
@@ -177,12 +178,13 @@
       isDragging = false;
     }
 
-    // Controls
+    // mute toggle
     muteBtn.addEventListener("click", () => {
       soundEnabled = !soundEnabled;
       muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
     });
 
+    // bind mouse + touch
     canvas.addEventListener("mousedown", pointerDown);
     canvas.addEventListener("mousemove", pointerMove);
     canvas.addEventListener("mouseup", pointerUp);
