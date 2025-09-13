@@ -17,16 +17,14 @@
     #upgradeBtn, #babyLockBtn {
       position:absolute; right:15px; font-size:20px; font-weight:bold; padding:16px 28px;
       border:none; border-radius:35px; color:white; cursor:pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     #upgradeBtn {
       bottom:20px; background:linear-gradient(135deg,#4facfe 0%,#8e2de2 100%);
-      box-shadow:0 0 15px rgba(142,45,226,0.6);
     }
     #babyLockBtn {
       bottom:80px; left:15px; right:auto;
       background:linear-gradient(135deg,#43e97b 0%,#38f9d7 100%);
-      box-shadow:0 0 15px rgba(56,249,215,0.6); display:none;
+      display:none;
     }
     #babyLockInfo {
       display:none; position:absolute; bottom:0; left:0; right:0;
@@ -68,11 +66,25 @@
     let bubbles=[], ripples=[];
 
     function createBubblesBackground() {
+      if (bubbles.length >= 25) return; // cap ~25 to avoid walls
+
       const size = 80 + Math.random()*50; // 80–130px
       const speed = 0.6 + Math.random()*0.5; // fall speed
       const x = Math.random()*canvas.width;
 
-      bubbles.push({ x, y: -size, r:size, vy:speed, popped:false });
+      // avoid clustering
+      let tooClose = false;
+      for (let b of bubbles) {
+        const dist = Math.abs(b.x - x);
+        if (dist < b.r + size + 30) {
+          tooClose = true;
+          break;
+        }
+      }
+
+      if (!tooClose) {
+        bubbles.push({ x, y: -size, r:size, vy:speed, popped:false });
+      }
     }
 
     function drawBubbles(){
@@ -89,7 +101,7 @@
 
         b.y += b.vy;
 
-        // recycle to top
+        // recycle when leaving bottom
         if(b.y - b.r > canvas.height){
           b.y = -b.r;
           b.x = Math.random()*canvas.width;
@@ -109,7 +121,7 @@
       });
     }
 
-    /* ---------- Audio helpers ---------- */
+    /* ---------- Audio ---------- */
     function ensureAudio(){
       if(!audioCtx){
         audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -134,13 +146,10 @@
       osc.stop(audioCtx.currentTime + 0.5);
     }
 
-    /* ---------- Bubble sound ---------- */
     function playBubblePop(x,y){
       const freq = scale[bubbleNoteIndex];
       playNote(freq,"sine");
-
       ripples.push({ x, y, radius:20, alpha:0.8 });
-
       bubbleNoteIndex = (bubbleNoteIndex + 1) % scale.length;
     }
 
@@ -169,18 +178,16 @@
     function animate(){
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
 
-      // Wheel notes
+      // wheel sounds
       const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
       const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
       const now=performance.now();
 
       if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>120){
         if(spinSpeed > 0){
-          // clockwise forward
           playNote(scale[wheelNoteIndex],"sine");
           wheelNoteIndex = (wheelNoteIndex + 1) % scale.length;
         } else {
-          // counterclockwise backward
           wheelNoteIndex = (wheelNoteIndex - 1 + scale.length) % scale.length;
           playNote(scale[wheelNoteIndex],"triangle");
         }
@@ -193,8 +200,8 @@
       requestAnimationFrame(animate);
     }
 
-    /* ---------- Wheel controls ---------- */
-    let activeTouches=[];
+    /* ---------- Controls ---------- */
+    let activeTouches=[]; let tapStartX=0,tapStartY=0,tapStartTime=0;
 
     function getPointerAngle(x,y){
       const r=canvas.getBoundingClientRect();
@@ -242,16 +249,14 @@
         activeTouches=[...e.touches];
         lastAngle=getAverageAngle(activeTouches);
       } else {
-        if(isDragging){
-          isDragging=false; activeTouches=[];
-        } else {
+        if(isDragging){ isDragging=false; activeTouches=[]; }
+        else {
           const rect=canvas.getBoundingClientRect();
           const x=(e.clientX||tapStartX)-rect.left;
           const y=(e.clientY||tapStartY)-rect.top;
           const dx=x-tapStartX, dy=y-tapStartY;
           const dist=Math.hypot(dx,dy);
           const time=Date.now()-tapStartTime;
-
           if(dist < 15 && time < 250){
             bubbles.forEach(b=>{
               if(!b.popped){
@@ -264,7 +269,6 @@
       }
     }
 
-    /* ---------- UI controls ---------- */
     muteBtn.onclick=()=>{
       soundEnabled=!soundEnabled;
       muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
@@ -282,7 +286,7 @@
     /* ---------- Start ---------- */
     window.onload=async()=>{
       resizeCanvas(); animate();
-      for (let i=0; i<20; i++) createBubblesBackground();
+      for (let i=0; i<15; i++) createBubblesBackground();
       setInterval(createBubblesBackground, 400);
       await initIAP();
       const unlocked=await checkUnlock();
