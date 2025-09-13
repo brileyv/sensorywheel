@@ -69,21 +69,22 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesFromSpin() {
-      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.06, 0.25); // higher spawn rate
-      if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance && bubbles.length < 14) {
+      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.07, 0.3); // higher spawn rate
+      if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance && bubbles.length < 20) {
         const angleOffset = angle + (Math.random()*2*Math.PI); // anywhere around wheel
         const spawnRadius = radius + 12;
         const bx = canvas.width/2 + Math.cos(angleOffset)*spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset)*spawnRadius;
-        const size = 70 + Math.random()*30;
-        const speed = 0.2 + Math.random()*0.5; // slower so they last longer
+
+        const size = 90 + Math.random()*40; // bigger bubbles (90–130px)
+        const speed = 0.1 + Math.random()*0.3; // slower so they linger
         const vx = Math.cos(angleOffset)*speed, vy = Math.sin(angleOffset)*speed;
 
         // --- prevent clustering ---
         let tooClose = false;
         for (let b of bubbles) {
           const dist = Math.hypot(b.x - bx, b.y - by);
-          if (dist < b.r + size + 25) { // 25px buffer
+          if (dist < b.r + size + 25) { // buffer
             tooClose = true;
             break;
           }
