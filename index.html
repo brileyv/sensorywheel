@@ -57,31 +57,29 @@
     import { showBanner, hideBanner } from "./ads.js";
     import { initIAP, buyUnlock, checkUnlock, enableBabyLock } from "./iap.js";
 
-    const canvas = document.getElementById("wheelCanvas");
-    const ctx = canvas.getContext("2d");
-    const muteBtn = document.getElementById("muteBtn");
-    const volumeSlider = document.getElementById("volumeSlider");
+    const canvas=document.getElementById("wheelCanvas"),ctx=canvas.getContext("2d");
+    const muteBtn=document.getElementById("muteBtn"),volumeSlider=document.getElementById("volumeSlider");
 
-    let radius=100, audioCtx=null, masterGain=null, soundEnabled=true, volume=0.5;
-    let angle=0, spinSpeed=0, friction=0.985, isDragging=false, lastAngle=0, lastTime=0;
-    let glowPulseTime=0, lastSlice=null, lastSoundTime=0;
+    let radius=100,audioCtx=null,masterGain=null,soundEnabled=true,volume=0.5;
+    let angle=0,spinSpeed=0,friction=0.985,isDragging=false,lastAngle=0,lastTime=0,glowPulseTime=0,lastSlice=null,lastSoundTime=0;
 
     const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
     const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
 
-    /* ---------- Bubble system ---------- */
+    /* ---------- Bubbles + Ripples ---------- */
     let bubbles = [];
+    let ripples = [];
 
     function createBubblesFromSpin() {
-      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.1); // fewer bubbles
+      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
       if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance) {
         const angleOffset = angle + (Math.random() * 0.5 - 0.25);
         const spawnRadius = radius + 12;
         const bx = canvas.width/2 + Math.cos(angleOffset) * spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset) * spawnRadius;
 
-        const size = 70 + Math.random() * 30; // 70–100px
-        const speed = 0.4 + Math.random() * 0.7; // slower → stays longer
+        const size = 70 + Math.random() * 30;
+        const speed = 0.3 + Math.random() * 0.6;
         const vx = Math.cos(angleOffset) * speed;
         const vy = Math.sin(angleOffset) * speed;
 
@@ -126,18 +124,31 @@
       });
     }
 
-    /* ---------- Bubble pop sound (MP3) ---------- */
-    let popBuffer=null;
-
-    async function loadPopSound(){
-      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-      const res=await fetch("bubble-pop-06-351337.mp3");
-      const data=await res.arrayBuffer();
-      popBuffer=await audioCtx.decodeAudioData(data);
+    function drawRipples() {
+      ripples.forEach((r, i) => {
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = `rgba(255,255,255,${r.alpha})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        r.radius += 2;
+        r.alpha -= 0.03;
+        if (r.alpha <= 0) ripples.splice(i, 1);
+      });
     }
-    loadPopSound();
 
-    function playBubblePop(){
+    /* ---------- MP3 Pop ---------- */
+    let popBuffer=null;
+    async function loadPopSound(){
+      try {
+        if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        const res=await fetch("bubble-pop-06-351337.mp3");
+        const data=await res.arrayBuffer();
+        popBuffer=await audioCtx.decodeAudioData(data);
+      } catch(e){ console.error("Pop sound load failed", e); }
+    }
+
+    function playBubblePop(x,y){
       if(!soundEnabled||!audioCtx||!popBuffer) return;
       const src=audioCtx.createBufferSource();
       src.buffer=popBuffer;
@@ -145,7 +156,22 @@
       gain.gain.value=volume*0.8;
       src.connect(gain).connect(masterGain||audioCtx.destination);
       src.start(0);
+
+      // add visual ripple
+      ripples.push({ x, y, radius:20, alpha:0.8 });
     }
+
+    canvas.addEventListener("click",(e)=>{
+      const rect=canvas.getBoundingClientRect();
+      const x=e.clientX-rect.left;
+      const y=e.clientY-rect.top;
+      bubbles.forEach(b=>{
+        if(!b.popped){
+          const dist=Math.hypot(b.x-x,b.y-y);
+          if(dist<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
+        }
+      });
+    });
     function resizeCanvas(){
       canvas.width=window.innerWidth||600;
       canvas.height=window.innerHeight||600;
@@ -201,7 +227,9 @@
       }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles(); drawWheel();
+      drawBubbles();
+      drawRipples();  // ripple animations
+      drawWheel();
       requestAnimationFrame(animate);
     }
 
@@ -260,7 +288,10 @@
     canvas.addEventListener("touchend",pointerUp);
 
     window.onload = async () => {
-      resizeCanvas(); animate(); await initIAP();
+      resizeCanvas();
+      animate();         // start wheel immediately
+      loadPopSound();    // load MP3 async
+      await initIAP();
       const unlocked = await checkUnlock();
       if (!unlocked) {
         showBanner();
