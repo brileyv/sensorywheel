@@ -62,7 +62,7 @@
     let wheelNoteIndex = 0;
     let bubbleNoteIndex = 0;
 
-    /* ---------- Staggered Non-Overlapping Bubbles ---------- */
+    /* ---------- Bubbles ---------- */
     let bubbles=[], ripples=[];
     const bubbleCount = 30;
     const minSize = 70, maxSize = 110;
@@ -74,8 +74,8 @@
       let attempts = 0;
       while (!safe && attempts < 50) {
         bubble = {
-          x: Math.random() * (canvas.width - maxSize*2) + maxSize, // keep inside screen
-          y: -Math.random()*150,
+          x: Math.random() * (canvas.width - maxSize*2) + maxSize,
+          y: -Math.random() * canvas.height, // anywhere above screen
           r: minSize + Math.random()*(maxSize-minSize),
           vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
           drift: (Math.random()*0.6 - 0.3)
@@ -83,7 +83,7 @@
         safe = true;
         for (let other of bubbles) {
           const dist = Math.hypot(bubble.x - other.x, bubble.y - other.y);
-          if (dist < bubble.r + other.r + 10) {
+          if (dist < bubble.r + other.r + 15) {
             safe = false;
             break;
           }
@@ -101,7 +101,7 @@
         } else {
           clearInterval(spawnInterval);
         }
-      }, 900); // slower staggered spawn for smoother entrance
+      }, 800); // slower spawn
     }
 
     function drawBubbles(){
