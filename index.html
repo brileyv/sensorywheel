@@ -105,7 +105,6 @@
         }
       });
     }
-    
 
     function drawRipples(){
       ripples.forEach((r,i)=>{
@@ -117,7 +116,7 @@
       });
     }
 
-    /* ---------- Natural Bubble Pop ---------- */
+    /* ---------- Simple Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -128,48 +127,26 @@
       }
 
       const now = audioCtx.currentTime;
-
-      // Randomized pitch
-      const startFreq = 500 + Math.random()*300;
-      const endFreq   = 80 + Math.random()*50;
-
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
+
       osc.type = "sine";
-      osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.25);
-      gain.gain.setValueAtTime(0.6, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
       osc.connect(gain).connect(masterGain);
       osc.start(now);
-      osc.stop(now + 0.3);
-
-      // Tiny click burst
-      const clickOsc = audioCtx.createOscillator();
-      const clickGain = audioCtx.createGain();
-      clickOsc.type = "sine";
-      clickOsc.frequency.setValueAtTime(2000, now);
-      clickGain.gain.setValueAtTime(0.2, now);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, now+0.05);
-      clickOsc.connect(clickGain).connect(masterGain);
-      clickOsc.start(now);
-      clickOsc.stop(now+0.05);
+      osc.stop(now + 0.2);
 
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
-    // Pop detection works even while spinning
-    canvas.addEventListener("pointerdown", e => {
-      const rect=canvas.getBoundingClientRect();
-      const x=e.clientX-rect.left, y=e.clientY-rect.top;
-      bubbles.forEach(b=>{
-        if(!b.popped){
-          const d=Math.hypot(b.x-x,b.y-y);
-          if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
-        }
-      });
-    });
-    /* ---------- Wheel + Spin with Multi-touch ---------- */
+    // Tap detection variables
+    let tapStartX=0, tapStartY=0, tapStartTime=0;
+    /* ---------- Wheel + Spin with Tap-to-Pop ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
@@ -249,12 +226,20 @@
       osc.start(); osc.stop(audioCtx.currentTime+0.25);
     }
 
+    // --- Tap-to-pop logic ---
     let activeTouches=[];
+    let tapStartX=0, tapStartY=0, tapStartTime=0;
+
     function pointerDown(e){
       isDragging=true;
       activeTouches=e.touches?[...e.touches]:[e];
       lastAngle=getAverageAngle(activeTouches);
       lastTime=Date.now(); spinSpeed=0;
+
+      const rect=canvas.getBoundingClientRect();
+      const x=(e.clientX||e.touches[0].clientX)-rect.left;
+      const y=(e.clientY||e.touches[0].clientY)-rect.top;
+      tapStartX=x; tapStartY=y; tapStartTime=Date.now();
     }
     function pointerMove(e){
       if(!isDragging) return;
@@ -271,9 +256,27 @@
         lastAngle=getAverageAngle(activeTouches);
       } else {
         isDragging=false; activeTouches=[];
+
+        // Tap detection
+        const rect=canvas.getBoundingClientRect();
+        const x=(e.clientX||tapStartX)-rect.left;
+        const y=(e.clientY||tapStartY)-rect.top;
+        const dx=x-tapStartX, dy=y-tapStartY;
+        const dist=Math.hypot(dx,dy);
+        const time=Date.now()-tapStartTime;
+
+        if(dist<15 && time<250){
+          bubbles.forEach(b=>{
+            if(!b.popped){
+              const d=Math.hypot(b.x-x,b.y-y);
+              if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
+            }
+          });
+        }
       }
     }
 
+    // --- UI controls ---
     muteBtn.onclick=()=>{
       soundEnabled=!soundEnabled;
       muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
@@ -283,6 +286,7 @@
       if(masterGain){ masterGain.gain.value=volume; }
     };
 
+    // Use pointer events for everything
     canvas.addEventListener("pointerdown",pointerDown);
     canvas.addEventListener("pointermove",pointerMove);
     canvas.addEventListener("pointerup",pointerUp);
