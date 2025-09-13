@@ -63,7 +63,10 @@
     /* ---------- Bubbles + Ripples ---------- */
     let bubbles=[], ripples=[];
     let tapStartX=0, tapStartY=0, tapStartTime=0;
-    let bubbleAudio = null;
+
+    // preload bubble sound
+    let bubbleAudio = new Audio("bubble-pop.mp3");
+    bubbleAudio.load();
 
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
@@ -118,16 +121,12 @@
       });
     }
 
-    /* ---------- Bubble Pop using MP3 ---------- */
+    /* ---------- Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
-      if (!bubbleAudio) {
-        bubbleAudio = new Audio("bubble-pop.mp3");
-      }
-      const pop = bubbleAudio.cloneNode();
+      const pop = bubbleAudio.cloneNode(); // clone so multiple pops can overlap
       pop.volume = volume;
       pop.play();
-
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
@@ -211,20 +210,26 @@
       osc.start(); osc.stop(audioCtx.currentTime+0.25);
     }
 
-    // --- Pointer logic (no tap while spinning) ---
+    // --- Pointer logic ---
     let activeTouches=[];
 
     function pointerDown(e){
-      isDragging=true;
-      activeTouches=e.touches?[...e.touches]:[e];
-      lastAngle=getAverageAngle(activeTouches);
-      lastTime=Date.now(); spinSpeed=0;
-
       const rect=canvas.getBoundingClientRect();
-      tapStartX=(e.clientX||e.touches[0].clientX)-rect.left;
-      tapStartY=(e.clientY||e.touches[0].clientY)-rect.top;
-      tapStartTime=Date.now();
+      const x=(e.clientX||e.touches[0].clientX)-rect.left;
+      const y=(e.clientY||e.touches[0].clientY)-rect.top;
+      const dx=x-canvas.width/2, dy=y-canvas.height/2;
+
+      // Only spin if inside wheel
+      if (Math.hypot(dx,dy) <= radius) {
+        isDragging=true;
+        activeTouches=e.touches?[...e.touches]:[e];
+        lastAngle=getAverageAngle(activeTouches);
+        lastTime=Date.now(); spinSpeed=0;
+      }
+
+      tapStartX=x; tapStartY=y; tapStartTime=Date.now();
     }
+
     function pointerMove(e){
       if(!isDragging) return;
       activeTouches=e.touches?[...e.touches]:[e];
@@ -234,27 +239,31 @@
       angle+=d; spinSpeed=d/((now-lastTime)/1000);
       lastAngle=a; lastTime=now;
     }
+
     function pointerUp(e){
       if(e.touches && e.touches.length>0){
         activeTouches=[...e.touches];
         lastAngle=getAverageAngle(activeTouches);
       } else {
-        isDragging=false; activeTouches=[];
-        const rect=canvas.getBoundingClientRect();
-        const x=(e.clientX||tapStartX)-rect.left;
-        const y=(e.clientY||tapStartY)-rect.top;
-        const dx=x-tapStartX, dy=y-tapStartY;
-        const dist=Math.hypot(dx,dy);
-        const time=Date.now()-tapStartTime;
+        if(isDragging){
+          isDragging=false;
+          activeTouches=[];
+        } else {
+          const rect=canvas.getBoundingClientRect();
+          const x=(e.clientX||tapStartX)-rect.left;
+          const y=(e.clientY||tapStartY)-rect.top;
+          const dx=x-tapStartX, dy=y-tapStartY;
+          const dist=Math.hypot(dx,dy);
+          const time=Date.now()-tapStartTime;
 
-        // Only tap if not spinning
-        if(Math.abs(spinSpeed) < 0.01 && dist < 15 && time < 250){
-          bubbles.forEach(b=>{
-            if(!b.popped){
-              const d=Math.hypot(b.x-x,b.y-y);
-              if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
-            }
-          });
+          if(dist < 15 && time < 250){
+            bubbles.forEach(b=>{
+              if(!b.popped){
+                const d=Math.hypot(b.x-x,b.y-y);
+                if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
+              }
+            });
+          }
         }
       }
     }
@@ -269,7 +278,7 @@
       if(masterGain){ masterGain.gain.value=volume; }
     };
 
-    // Use pointer events for everything
+    // Use pointer events
     canvas.addEventListener("pointerdown",pointerDown);
     canvas.addEventListener("pointermove",pointerMove);
     canvas.addEventListener("pointerup",pointerUp);
