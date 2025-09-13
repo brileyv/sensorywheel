@@ -78,20 +78,22 @@
     const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
     const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
 
-    // --- Bubble system (spawn from wheel edge) ---
+    // --- Bubble system (large, floaty, spread out) ---
     let bubbles = [];
     function createBubble() {
-      if (bubbles.length < 15) {
+      if (bubbles.length < 12) {
         const angleOffset = Math.random() * 2 * Math.PI;
-        const spawnRadius = radius;
+        const spawnRadius = radius + 40;
         const bx = canvas.width/2 + Math.cos(angleOffset) * spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset) * spawnRadius;
 
-        const size = 60 + Math.random() * 60; // Large bubbles: 60–120px
+        // Large bubbles only
+        const size = 80 + Math.random() * 40; // 80–120px
 
-        const speedBase = 0.2 + Math.random() * 0.3;
-        const vx = Math.cos(angleOffset) * speedBase + spinSpeed * 0.03;
-        const vy = Math.sin(angleOffset) * speedBase + spinSpeed * 0.03;
+        // Gentle float in random directions
+        const speedBase = 0.2 + Math.random() * 0.2;
+        const vx = Math.cos(angleOffset) * speedBase * (Math.random() > 0.5 ? 1 : -1);
+        const vy = Math.sin(angleOffset) * speedBase * (Math.random() > 0.5 ? 1 : -1);
 
         bubbles.push({
           x: bx,
@@ -99,12 +101,12 @@
           r: size,
           vx: vx,
           vy: vy,
-          opacity: 0.6 + Math.random() * 0.3,
+          opacity: 0.5 + Math.random() * 0.3,
           popped: false
         });
       }
     }
-    setInterval(createBubble, 1000);
+    setInterval(createBubble, 1500);
 
     function drawBubbles() {
       bubbles.forEach((b, i) => {
@@ -138,12 +140,15 @@
           ctx.fillStyle = "rgba(255,255,255,0.35)";
           ctx.fill();
 
-          // movement outward
+          // slow drift
           b.x += b.vx;
           b.y += b.vy;
-          b.r *= 0.996;
 
-          if (b.r < 6) bubbles.splice(i, 1);
+          // remove if fully off screen
+          if (b.x + b.r < 0 || b.x - b.r > canvas.width ||
+              b.y + b.r < 0 || b.y - b.r > canvas.height) {
+            bubbles.splice(i, 1);
+          }
         }
       });
     }
@@ -200,7 +205,6 @@
       glowPulseTime += 0.02;
       const pulse = 50 + Math.sin(glowPulseTime) * 10;
 
-      // outer halo
       ctx.beginPath();
       ctx.arc(0, 0, radius + 12, 0, 2 * Math.PI);
       ctx.strokeStyle = "white";
@@ -209,7 +213,6 @@
       ctx.shadowBlur = pulse * 1.5;
       ctx.stroke();
 
-      // wheel slices
       for(let i=0;i<colors.length;i++){
         ctx.beginPath();
         ctx.moveTo(0,0);
@@ -246,8 +249,8 @@
       }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles();
-      drawWheel();
+      drawBubbles(); // bubbles behind
+      drawWheel();   // wheel in front
       requestAnimationFrame(animate);
     }
 
