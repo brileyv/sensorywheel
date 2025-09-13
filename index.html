@@ -62,6 +62,7 @@
 
     /* ---------- Bubbles + Ripples ---------- */
     let bubbles=[], ripples=[];
+    let tapStartX=0, tapStartY=0, tapStartTime=0;
 
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
@@ -144,8 +145,6 @@
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
-    // Tap detection variables
-    let tapStartX=0, tapStartY=0, tapStartTime=0;
     /* ---------- Wheel + Spin with Tap-to-Pop ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
@@ -228,7 +227,6 @@
 
     // --- Tap-to-pop logic ---
     let activeTouches=[];
-    let tapStartX=0, tapStartY=0, tapStartTime=0;
 
     function pointerDown(e){
       isDragging=true;
@@ -237,9 +235,9 @@
       lastTime=Date.now(); spinSpeed=0;
 
       const rect=canvas.getBoundingClientRect();
-      const x=(e.clientX||e.touches[0].clientX)-rect.left;
-      const y=(e.clientY||e.touches[0].clientY)-rect.top;
-      tapStartX=x; tapStartY=y; tapStartTime=Date.now();
+      tapStartX=(e.clientX||e.touches[0].clientX)-rect.left;
+      tapStartY=(e.clientY||e.touches[0].clientY)-rect.top;
+      tapStartTime=Date.now();
     }
     function pointerMove(e){
       if(!isDragging) return;
@@ -256,8 +254,6 @@
         lastAngle=getAverageAngle(activeTouches);
       } else {
         isDragging=false; activeTouches=[];
-
-        // Tap detection
         const rect=canvas.getBoundingClientRect();
         const x=(e.clientX||tapStartX)-rect.left;
         const y=(e.clientY||tapStartY)-rect.top;
