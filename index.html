@@ -19,7 +19,6 @@
       width:220px; height:30px;
     }
 
-    /* Premium glowing pill style */
     #upgradeBtn, #babyLockBtn {
       position:absolute; right:15px;
       font-size:20px; font-weight:bold;
@@ -28,28 +27,17 @@
       color:white; cursor:pointer;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
-
     #upgradeBtn {
       bottom:20px;
       background: linear-gradient(135deg, #4facfe 0%, #8e2de2 100%);
       box-shadow: 0 0 15px rgba(142,45,226,0.6);
     }
-    #upgradeBtn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px rgba(142,45,226,0.9);
-    }
-
     #babyLockBtn {
       bottom:80px; left:15px; right:auto;
       background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
       box-shadow: 0 0 15px rgba(56,249,215,0.6);
       display:none;
     }
-    #babyLockBtn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px rgba(56,249,215,0.9);
-    }
-
     #babyLockInfo {
       display:none; position:absolute; bottom:0; left:0; right:0;
       padding:10px; text-align:center; font-size:16px; color:#fff;
@@ -78,41 +66,29 @@
     const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
     const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
 
-    // --- Bubble system (large, floaty, spread out) ---
+    // --- Bubbles ---
     let bubbles = [];
-    function createBubble() {
-      if (bubbles.length < 12) {
-        const angleOffset = Math.random() * 2 * Math.PI;
-        const spawnRadius = radius + 40;
+    function createBubblesFromSpin() {
+      if (Math.abs(spinSpeed) > 0.01 && Math.random() < Math.min(Math.abs(spinSpeed) * 0.05, 0.3)) {
+        const angleOffset = angle + (Math.random() * 0.5 - 0.25); // near spin angle
+        const spawnRadius = radius + 10;
         const bx = canvas.width/2 + Math.cos(angleOffset) * spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset) * spawnRadius;
 
-        // Large bubbles only
-        const size = 80 + Math.random() * 40; // 80–120px
+        const size = 60 + Math.random() * 40;
 
-        // Gentle float in random directions
-        const speedBase = 0.2 + Math.random() * 0.2;
-        const vx = Math.cos(angleOffset) * speedBase * (Math.random() > 0.5 ? 1 : -1);
-        const vy = Math.sin(angleOffset) * speedBase * (Math.random() > 0.5 ? 1 : -1);
+        const speed = 2 + Math.random() * 2;
+        const vx = Math.cos(angleOffset) * speed;
+        const vy = Math.sin(angleOffset) * speed;
 
-        bubbles.push({
-          x: bx,
-          y: by,
-          r: size,
-          vx: vx,
-          vy: vy,
-          opacity: 0.5 + Math.random() * 0.3,
-          popped: false
-        });
+        bubbles.push({ x:bx, y:by, r:size, vx:vx, vy:vy, opacity:0.6 + Math.random()*0.3, popped:false });
       }
     }
-    setInterval(createBubble, 1500);
 
     function drawBubbles() {
       bubbles.forEach((b, i) => {
         if (!b.popped) {
-          // main translucent body
-          const grad = ctx.createRadialGradient(b.x, b.y, b.r * 0.7, b.x, b.y, b.r);
+          const grad = ctx.createRadialGradient(b.x, b.y, b.r * 0.6, b.x, b.y, b.r);
           grad.addColorStop(0, "rgba(255,255,255,0.05)");
           grad.addColorStop(0.7, "rgba(255,255,255,0.1)");
           grad.addColorStop(1, "rgba(255,255,255,0.25)");
@@ -122,29 +98,25 @@
           ctx.fillStyle = grad;
           ctx.fill();
 
-          // rainbow sheen
           const rainbow = ctx.createLinearGradient(b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r);
-          rainbow.addColorStop(0, "rgba(255,0,255,0.2)");
-          rainbow.addColorStop(0.25, "rgba(0,255,255,0.2)");
-          rainbow.addColorStop(0.5, "rgba(0,255,0,0.15)");
-          rainbow.addColorStop(0.75, "rgba(255,255,0,0.2)");
-          rainbow.addColorStop(1, "rgba(255,0,0,0.2)");
+          rainbow.addColorStop(0, "rgba(255,0,255,0.25)");
+          rainbow.addColorStop(0.25, "rgba(0,255,255,0.25)");
+          rainbow.addColorStop(0.5, "rgba(0,255,0,0.2)");
+          rainbow.addColorStop(0.75, "rgba(255,255,0,0.25)");
+          rainbow.addColorStop(1, "rgba(255,0,0,0.25)");
 
           ctx.strokeStyle = rainbow;
           ctx.lineWidth = 2;
           ctx.stroke();
 
-          // glossy highlight
           ctx.beginPath();
           ctx.arc(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.2, 0, 2 * Math.PI);
           ctx.fillStyle = "rgba(255,255,255,0.35)";
           ctx.fill();
 
-          // slow drift
           b.x += b.vx;
           b.y += b.vy;
 
-          // remove if fully off screen
           if (b.x + b.r < 0 || b.x - b.r > canvas.width ||
               b.y + b.r < 0 || b.y - b.r > canvas.height) {
             bubbles.splice(i, 1);
@@ -152,6 +124,7 @@
         }
       });
     }
+
     canvas.addEventListener("click", (e) => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -159,29 +132,37 @@
       bubbles.forEach(b => {
         if (!b.popped) {
           const dist = Math.hypot(b.x - x, b.y - y);
-          if (dist < b.r) {
-            b.popped = true;
-            playBubblePop();
-          }
+          if (dist < b.r) { b.popped = true; playBubblePop(); }
         }
       });
     });
 
     function playBubblePop() {
       if (!soundEnabled || !audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
-      osc.connect(gain);
-      gain.connect(masterGain);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
-    }
+      const now = audioCtx.currentTime;
 
-    // --- Wheel functions ---
+      // noise burst
+      const bufferSize = audioCtx.sampleRate * 0.1;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random()*2-1)*(1 - i/bufferSize);
+      const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.2, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.1);
+      noise.connect(noiseGain).connect(masterGain);
+      noise.start(now); noise.stop(now+0.1);
+
+      // blip
+      const osc = audioCtx.createOscillator();
+      osc.type="sine"; osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(200, now+0.15);
+      const oscGain = audioCtx.createGain();
+      oscGain.gain.setValueAtTime(0.2, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now+0.15);
+      osc.connect(oscGain).connect(masterGain);
+      osc.start(now); osc.stop(now+0.15);
+    }
     function resizeCanvas(){
       canvas.width=window.innerWidth||600;
       canvas.height=window.innerHeight||600;
@@ -216,10 +197,7 @@
       for(let i=0;i<colors.length;i++){
         ctx.beginPath();
         ctx.moveTo(0,0);
-        ctx.arc(0,0,radius,
-          (i*2*Math.PI)/colors.length,
-          ((i+1)*2*Math.PI)/colors.length
-        );
+        ctx.arc(0,0,radius,(i*2*Math.PI)/colors.length,((i+1)*2*Math.PI)/colors.length);
         ctx.closePath();
         ctx.fillStyle = colors[i];
         ctx.shadowColor = colors[i];
@@ -230,115 +208,76 @@
     }
 
     function animate(){
-      if(!isDragging){
-        angle+=spinSpeed;
-        spinSpeed*=friction;
-      }
+      if(!isDragging){ angle+=spinSpeed; spinSpeed*=friction; }
+
+      createBubblesFromSpin(); // bubbles spit from wheel
+
       const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
       const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
       const now=performance.now();
 
       if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
-        if(spinSpeed>0){
-          playTone(notes[currentSlice%notes.length],0.25,"sine","cw");
-        } else {
-          playTone(notes[currentSlice%notes.length]/2,0.25,"triangle","ccw");
-        }
-        lastSlice=currentSlice;
-        lastSoundTime=now;
+        if(spinSpeed>0){ playTone(notes[currentSlice%notes.length],0.25,"sine","cw"); }
+        else { playTone(notes[currentSlice%notes.length]/2,0.25,"triangle","ccw"); }
+        lastSlice=currentSlice; lastSoundTime=now;
       }
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles(); // bubbles behind
-      drawWheel();   // wheel in front
+      drawBubbles(); drawWheel();
       requestAnimationFrame(animate);
     }
 
     function playTone(freq,duration,type,dir="cw"){
       if(!soundEnabled) return;
-      if(!audioCtx){
-        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        masterGain=audioCtx.createGain();
-        masterGain.gain.value=volume;
-        masterGain.connect(audioCtx.destination);
-      }
+      if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        masterGain=audioCtx.createGain(); masterGain.gain.value=volume;
+        masterGain.connect(audioCtx.destination);}
       const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-      osc.type=type;
-      osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
-      if(dir==="cw"){
-        gain.gain.setValueAtTime(0,audioCtx.currentTime);
+      osc.type=type; osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+      if(dir==="cw"){ gain.gain.setValueAtTime(0,audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.02);
         gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+duration-0.05);
-        gain.gain.linearRampToValueAtTime(0,audioCtx.currentTime+duration);
-      } else {
-        gain.gain.setValueAtTime(0,audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0,audioCtx.currentTime+duration);}
+      else { gain.gain.setValueAtTime(0,audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.18,audioCtx.currentTime+0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
-      }
-      osc.connect(gain);
-      gain.connect(masterGain);
-      osc.start();
-      osc.stop(audioCtx.currentTime+duration);
+        gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);}
+      osc.connect(gain); gain.connect(masterGain);
+      osc.start(); osc.stop(audioCtx.currentTime+duration);
     }
 
     function pointerDown(e){
       isDragging=true;
-      lastAngle=getPointerAngle(
-        e.clientX||e.touches[0].clientX,
-        e.clientY||e.touches[0].clientY
-      );
-      lastTime=Date.now();
-      spinSpeed=0;
+      lastAngle=getPointerAngle(e.clientX||e.touches[0].clientX,e.clientY||e.touches[0].clientY);
+      lastTime=Date.now(); spinSpeed=0;
     }
-
     function pointerMove(e){
       if(!isDragging) return;
-      const a=getPointerAngle(
-        e.clientX||e.touches[0].clientX,
-        e.clientY||e.touches[0].clientY
-      );
-      const now=Date.now();
-      const delta=a-lastAngle;
-      angle+=delta;
-      spinSpeed=delta/((now-lastTime)/1000);
-      lastAngle=a;
-      lastTime=now;
+      const a=getPointerAngle(e.clientX||e.touches[0].clientX,e.clientY||e.touches[0].clientY);
+      const now=Date.now(); const delta=a-lastAngle;
+      angle+=delta; spinSpeed=delta/((now-lastTime)/1000);
+      lastAngle=a; lastTime=now;
     }
-
     function pointerUp(){ isDragging=false; }
 
-    muteBtn.onclick=()=>{
-      soundEnabled=!soundEnabled;
-      muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
-    };
-
-    volumeSlider.oninput=e=>{
-      volume=parseFloat(e.target.value);
-      if(masterGain){ masterGain.gain.value=volume; }
-    };
+    muteBtn.onclick=()=>{ soundEnabled=!soundEnabled;
+      muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off"; };
+    volumeSlider.oninput=e=>{ volume=parseFloat(e.target.value);
+      if(masterGain){ masterGain.gain.value=volume; } };
 
     canvas.addEventListener("mousedown",pointerDown);
     canvas.addEventListener("mousemove",pointerMove);
     canvas.addEventListener("mouseup",pointerUp);
-
     canvas.addEventListener("touchstart",pointerDown);
     canvas.addEventListener("touchmove",pointerMove);
     canvas.addEventListener("touchend",pointerUp);
 
-    // ---- APP MODE LOGIC ----
     window.onload = async () => {
-      resizeCanvas();
-      animate();
-      await initIAP();
+      resizeCanvas(); animate(); await initIAP();
       const unlocked = await checkUnlock();
-      if (!unlocked) {
-        showBanner();
-        document.getElementById("upgradeBtn").onclick = buyUnlock;
-      } else {
-        document.getElementById("upgradeBtn").style.display = "none";
-        document.getElementById("babyLockBtn").style.display = "block";
-        document.getElementById("babyLockBtn").onclick = enableBabyLock;
-      }
+      if (!unlocked) { showBanner(); document.getElementById("upgradeBtn").onclick = buyUnlock; }
+      else { document.getElementById("upgradeBtn").style.display="none";
+             document.getElementById("babyLockBtn").style.display="block";
+             document.getElementById("babyLockBtn").onclick=enableBabyLock; }
     };
   </script>
 </body>
