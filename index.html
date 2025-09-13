@@ -116,33 +116,14 @@
       });
     }
 
-    /* ---------- Bubble Pop Sound (safe load) ---------- */
-    let popBuffer=null;
-    async function loadPopSound(){
-      try{
-        if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        const res=await fetch("bubble-pop-06-351337.mp3");
-        const data=await res.arrayBuffer();
-        popBuffer=await audioCtx.decodeAudioData(data);
-        console.log("Pop sound loaded");
-      }catch(e){console.error("Pop sound error",e);}
-    }
-
+    /* ---------- Bubble Pop Sound (simple) ---------- */
     function playBubblePop(x,y){
-      if(!soundEnabled||!audioCtx||!popBuffer) return;
-      const src=audioCtx.createBufferSource();
-      src.buffer=popBuffer;
-      const gain=audioCtx.createGain();
-      gain.gain.value=volume*0.8;
-      src.connect(gain).connect(masterGain||audioCtx.destination);
-      src.start(0);
+      if(!soundEnabled) return;
+      const pop = new Audio("bubble-pop-06-351337.mp3");
+      pop.volume = Math.min(1, volume*0.8);
+      pop.play().catch(()=>{});
       ripples.push({x,y,radius:20,alpha:0.8});
     }
-
-    // load MP3 after first touch/click (never in onload)
-    ["mousedown","touchstart"].forEach(evt=>{
-      window.addEventListener(evt,()=>{loadPopSound();},{once:true});
-    });
 
     canvas.addEventListener("click",(e)=>{
       const rect=canvas.getBoundingClientRect();
@@ -257,7 +238,7 @@
 
     window.onload = async () => {
       resizeCanvas();
-      animate();   // animation always starts
+      animate();   // start spinning loop immediately
       await initIAP();
       const unlocked = await checkUnlock();
       if (!unlocked) {
