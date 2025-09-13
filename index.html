@@ -117,7 +117,7 @@
       });
     }
 
-    /* ---------- Soft Watery Plop ---------- */
+    /* ---------- Watery Plop + Plink ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -129,37 +129,55 @@
 
       const now = audioCtx.currentTime;
 
-      // Gentle drip values
+      // Low plop values
       const startFreq = 250 + Math.random()*50;   // 250–300 Hz
       const endFreq   = 180 + Math.random()*20;   // 180–200 Hz
       const decay     = 0.18 + Math.random()*0.05;
 
-      // Oscillator
+      // High plink values
+      const plinkFreq = 800 + Math.random()*400;  // 800–1200 Hz
+      const plinkDecay = 0.08 + Math.random()*0.04;
+
+      // Low plop oscillator
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(startFreq, now);
       osc.frequency.linearRampToValueAtTime(endFreq, now + decay);
-
-      // Gentle volume envelope
       gain.gain.setValueAtTime(0.15, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
 
-      // Echo
+      // High plink oscillator
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(plinkFreq, now);
+      gain2.gain.setValueAtTime(0.07, now);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + plinkDecay);
+
+      // Echo for watery resonance
       const delay = audioCtx.createDelay();
       delay.delayTime.value = 0.15;
       const echoGain = audioCtx.createGain();
       echoGain.gain.value = 0.07;
 
+      // Connect graph
       osc.connect(gain);
       gain.connect(masterGain);
       gain.connect(delay);
       delay.connect(echoGain);
       echoGain.connect(masterGain);
 
+      osc2.connect(gain2);
+      gain2.connect(masterGain);
+
+      // Start & stop
       osc.start(now);
       osc.stop(now + decay);
+      osc2.start(now);
+      osc2.stop(now + plinkDecay);
 
+      // Ripple effect
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
