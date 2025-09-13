@@ -64,26 +64,26 @@
 
     /* ---------- Bubbles ---------- */
     let bubbles=[], ripples=[];
-    const bubbleCount = 30;
+    const bubbleCount = 35;
     const minSize = 70, maxSize = 110;
-    const minSpeed = 0.2, maxSpeed = 0.6;
+    const minSpeed = 0.4, maxSpeed = 1.2;
 
     function newBubble() {
       let safe = false;
       let bubble;
       let attempts = 0;
-      while (!safe && attempts < 50) {
+      while (!safe && attempts < 100) {
         bubble = {
           x: Math.random() * (canvas.width - maxSize*2) + maxSize,
-          y: -Math.random() * canvas.height, // anywhere above screen
-          r: minSize + Math.random()*(maxSize-minSize),
-          vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
-          drift: (Math.random()*0.6 - 0.3)
+          y: -Math.random() * canvas.height,
+          r: minSize + Math.random() * (maxSize - minSize),
+          vy: minSpeed + Math.random() * (maxSpeed - minSpeed),
+          drift: (Math.random() * 0.6 - 0.3)
         };
         safe = true;
         for (let other of bubbles) {
           const dist = Math.hypot(bubble.x - other.x, bubble.y - other.y);
-          if (dist < bubble.r + other.r + 15) {
+          if (dist < bubble.r + other.r + 25) {
             safe = false;
             break;
           }
@@ -101,7 +101,7 @@
         } else {
           clearInterval(spawnInterval);
         }
-      }, 800); // slower spawn
+      }, 600);
     }
 
     function drawBubbles(){
@@ -114,8 +114,9 @@
         ctx.fillStyle=g;
         ctx.fill();
 
+        // movement with gentle wiggle
         b.y += b.vy;
-        b.x += b.drift;
+        b.x += b.drift + Math.sin((Date.now()/500) + b.y/50) * 0.5;
 
         if (b.y - b.r > canvas.height) {
           bubbles[i] = newBubble();
@@ -233,19 +234,27 @@
       const rect=canvas.getBoundingClientRect();
       const x=(e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
       const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
-      const dx=x-canvas.width/2, dy=y-canvas.height/2;
+
+      const dx = x - canvas.width/2;
+      const dy = y - canvas.height/2;
+
       if (Math.hypot(dx,dy) <= radius && activeFingerId === null) {
-        isDragging=true;
+        isDragging = true;
         activeFingerId = e.pointerId || (e.changedTouches && e.changedTouches[0].identifier);
-        lastAngle=getPointerAngle(x,y);
-        lastTime=Date.now();
-        spinSpeed=0;
-      } else {
-        bubbles.forEach(b=>{
-          const d=Math.hypot(b.x-x,b.y-y);
-          if(d<b.r){ playBubblePop(b.x,b.y); }
-        });
-      }
+        lastAngle = getPointerAngle(x,y);
+        lastTime = Date.now();
+        spinSpeed = 0;
+      } 
+
+      // Always check bubbles
+      bubbles.forEach((b,i)=>{
+        const d=Math.hypot(b.x-x,b.y-y);
+        if(d<b.r){
+          playBubblePop(b.x,b.y);
+          bubbles[i] = newBubble();
+          bubbles[i].y = -b.r;
+        }
+      });
     }
 
     function pointerMove(e){
