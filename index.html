@@ -64,10 +64,6 @@
     let bubbles=[], ripples=[];
     let tapStartX=0, tapStartY=0, tapStartTime=0;
 
-    // preload bubble sound
-    let bubbleAudio = new Audio("bubble-pop.mp3");
-    bubbleAudio.load();
-
     function createBubblesFromSpin() {
       const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
       if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance) {
@@ -121,16 +117,49 @@
       });
     }
 
-    /* ---------- Bubble Pop ---------- */
+    /* ---------- Natural Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
-      const pop = bubbleAudio.cloneNode(); // clone so multiple pops can overlap
-      pop.volume = volume;
-      pop.play();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volume;
+        masterGain.connect(audioCtx.destination);
+      }
+
+      const now = audioCtx.currentTime;
+
+      // Noise burst
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.25, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      noise.connect(noiseGain).connect(masterGain);
+      noise.start(now);
+      noise.stop(now + 0.08);
+
+      // Low sine "plop"
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(400 + Math.random()*100, now);
+      osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.connect(gain).connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 0.15);
+
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
-    /* ---------- Wheel Drawing ---------- */
+    /* ---------- Wheel ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
