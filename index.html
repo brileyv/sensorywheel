@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spin & Glow Wheel</title>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at center, #1a0033, #0a0011);
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="wheelCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let w, h;
+    function resizeCanvas() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // Wheel variables
+    let angle = 0;
+    let spinSpeed = 0;
+    const friction = 0.985;
+    const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
+
+    function drawWheel() {
+      const radius = Math.min(w, h) / 3;
+      const x = w / 2;
+      const y = h / 2;
+      const numSlices = colors.length;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      for (let i = 0; i < numSlices; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, (i * 2 * Math.PI) / numSlices, ((i + 1) * 2 * Math.PI) / numSlices);
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+
+        ctx.shadowColor = colors[i];
+        ctx.shadowBlur = 20;
+      }
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius + 5, 0, 2 * Math.PI);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 5;
+      ctx.shadowColor = "#fff";
+      ctx.shadowBlur = 40;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, w, h);
+      drawWheel();
+      angle += spinSpeed;
+      spinSpeed *= friction;
+      requestAnimationFrame(animate);
+    }
+
+    canvas.addEventListener("click", () => {
+      spinSpeed = 0.3 + Math.random() * 0.3;
+    });
+
+    animate();
+  </script>
+</body>
+</html>
