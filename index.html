@@ -7,45 +7,82 @@
     body {
       margin: 0;
       background: radial-gradient(circle at center, #1a0033, #0a0011);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
       overflow: hidden;
     }
     canvas {
       display: block;
-      margin: auto;
-      touch-action: manipulation;
+      touch-action: none;
+    }
+    #muteBtn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 20px;
+      background: #fff;
+      color: #333;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
     }
   </style>
 </head>
 <body>
-  <canvas id="wheelCanvas"></canvas>
+  <button id="muteBtn">🔊 Sound On</button>
+  <canvas id="wheelCanvas" width="600" height="600"></canvas>
 
   <script>
     const canvas = document.getElementById("wheelCanvas");
     const ctx = canvas.getContext("2d");
+    const muteBtn = document.getElementById("muteBtn");
 
-    let w, h;
-    function resizeCanvas() {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
+    const radius = 250;
+    const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
-    // Wheel variables
+    // Musical notes (C major scale, soothing bell-like)
+    const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 493.88, 523.25]; 
+    let audioCtx = null;
+    let soundEnabled = true;
+
     let angle = 0;
     let spinSpeed = 0;
     const friction = 0.985;
-    const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
+
+    let isDragging = false;
+    let lastAngle = 0;
+    let lastTime = 0;
+
+    // Glow pulse
+    let glowPulseTime = 0;
+
+    // Track last slice index for sound
+    let lastSlice = null;
+
+    function getPointerAngle(x, y) {
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.left + canvas.width / 2;
+      const cy = rect.top + canvas.height / 2;
+      return Math.atan2(y - cy, x - cx);
+    }
 
     function drawWheel() {
-      const radius = Math.min(w, h) / 3;
-      const x = w / 2;
-      const y = h / 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const x = canvas.width / 2;
+      const y = canvas.height / 2;
       const numSlices = colors.length;
 
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
+
+      glowPulseTime += 0.02;
+      const pulse = 20 + Math.sin(glowPulseTime) * 10;
 
       for (let i = 0; i < numSlices; i++) {
         ctx.beginPath();
@@ -53,34 +90,106 @@
         ctx.arc(0, 0, radius, (i * 2 * Math.PI) / numSlices, ((i + 1) * 2 * Math.PI) / numSlices);
         ctx.closePath();
         ctx.fillStyle = colors[i];
-        ctx.fill();
-
         ctx.shadowColor = colors[i];
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = pulse;
+        ctx.fill();
       }
 
+      // Outer glowing border
       ctx.beginPath();
       ctx.arc(0, 0, radius + 5, 0, 2 * Math.PI);
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 5;
       ctx.shadowColor = "#fff";
-      ctx.shadowBlur = 40;
+      ctx.shadowBlur = pulse + 20;
       ctx.stroke();
 
       ctx.restore();
     }
 
     function animate() {
-      ctx.clearRect(0, 0, w, h);
+      if (!isDragging) {
+        angle += spinSpeed;
+        spinSpeed *= friction;
+      }
+
+      // Play sound when crossing into a new slice
+      const numSlices = colors.length;
+      const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const currentSlice = Math.floor((normalized / (2 * Math.PI)) * numSlices);
+
+      if (currentSlice !== lastSlice && spinSpeed > 0.05) {
+        playTone(notes[currentSlice % notes.length], 0.15);
+        lastSlice = currentSlice;
+      }
+
       drawWheel();
-      angle += spinSpeed;
-      spinSpeed *= friction;
       requestAnimationFrame(animate);
     }
 
-    canvas.addEventListener("click", () => {
-      spinSpeed = 0.3 + Math.random() * 0.3;
+    // Audio helper
+    function playTone(freq, duration) {
+      if (!soundEnabled) return;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // Pointer events
+    function pointerDown(e) {
+      isDragging = true;
+      lastAngle = getPointerAngle(
+        e.clientX || e.touches[0].clientX,
+        e.clientY || e.touches[0].clientY
+      );
+      lastTime = Date.now();
+      spinSpeed = 0;
+    }
+
+    function pointerMove(e) {
+      if (!isDragging) return;
+      const currentAngle = getPointerAngle(
+        e.clientX || e.touches[0].clientX,
+        e.clientY || e.touches[0].clientY
+      );
+      const now = Date.now();
+      const deltaAngle = currentAngle - lastAngle;
+
+      angle += deltaAngle;
+      spinSpeed = deltaAngle / ((now - lastTime) / 1000);
+
+      lastAngle = currentAngle;
+      lastTime = now;
+    }
+
+    function pointerUp() {
+      isDragging = false;
+    }
+
+    // Controls
+    muteBtn.addEventListener("click", () => {
+      soundEnabled = !soundEnabled;
+      muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
     });
+
+    canvas.addEventListener("mousedown", pointerDown);
+    canvas.addEventListener("mousemove", pointerMove);
+    canvas.addEventListener("mouseup", pointerUp);
+
+    canvas.addEventListener("touchstart", pointerDown);
+    canvas.addEventListener("touchmove", pointerMove);
+    canvas.addEventListener("touchend", pointerUp);
 
     animate();
   </script>
