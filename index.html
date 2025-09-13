@@ -78,7 +78,20 @@
         const size = 70 + Math.random()*30;
         const speed = 0.3 + Math.random()*0.6;
         const vx = Math.cos(angleOffset)*speed, vy = Math.sin(angleOffset)*speed;
-        bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
+
+        // --- prevent clustering ---
+        let tooClose = false;
+        for (let b of bubbles) {
+          const dist = Math.hypot(b.x - bx, b.y - by);
+          if (dist < b.r + size + 20) { // 20px buffer
+            tooClose = true;
+            break;
+          }
+        }
+
+        if (!tooClose) {
+          bubbles.push({ x:bx, y:by, r:size, vx, vy, popped:false });
+        }
       }
     }
 
