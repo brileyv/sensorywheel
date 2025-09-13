@@ -69,41 +69,41 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesBackground() {
-      if (bubbles.length >= 18) return; // cap at ~18 bubbles
+      if (bubbles.length >= 24) return; // cap ~24
 
       const edge = Math.floor(Math.random()*4); // 0=top,1=right,2=bottom,3=left
       let bx, by, vx, vy;
 
-      const size = 90 + Math.random()*40; // larger bubbles
-      const speed = 0.2 + Math.random()*0.4; // natural pace
+      const size = 70 + Math.random()*40; // smaller: 70–110px
+      const speed = 0.3 + Math.random()*0.3; // faster: 0.3–0.6
 
       if (edge === 0) { // top
         bx = Math.random()*canvas.width;
         by = -size;
-        vx = (Math.random()-0.5)*0.3;
+        vx = (Math.random()-0.5)*0.4;
         vy = speed;
       } else if (edge === 1) { // right
         bx = canvas.width + size;
         by = Math.random()*canvas.height;
         vx = -speed;
-        vy = (Math.random()-0.5)*0.3;
+        vy = (Math.random()-0.5)*0.4;
       } else if (edge === 2) { // bottom
         bx = Math.random()*canvas.width;
         by = canvas.height + size;
-        vx = (Math.random()-0.5)*0.3;
+        vx = (Math.random()-0.5)*0.4;
         vy = -speed;
       } else { // left
         bx = -size;
         by = Math.random()*canvas.height;
         vx = speed;
-        vy = (Math.random()-0.5)*0.3;
+        vy = (Math.random()-0.5)*0.4;
       }
 
       // --- prevent overlapping spawn ---
       let tooClose = false;
       for (let b of bubbles) {
         const dist = Math.hypot(b.x - bx, b.y - by);
-        if (dist < b.r + size + 30) {
+        if (dist < b.r + size + 25) {
           tooClose = true;
           break;
         }
@@ -327,7 +327,7 @@
 
     window.onload=async()=>{
       resizeCanvas(); animate();
-      setInterval(createBubblesBackground, 1200); // steady bubbles
+      setInterval(createBubblesBackground, 800); // spawn more often
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
