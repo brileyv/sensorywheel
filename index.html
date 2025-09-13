@@ -81,54 +81,72 @@
     // --- Bubble system (spawn from wheel edge) ---
     let bubbles = [];
     function createBubble() {
-      if (bubbles.length < 12) {
+      if (bubbles.length < 15) {
         const angleOffset = Math.random() * 2 * Math.PI;
         const spawnRadius = radius;
         const bx = canvas.width/2 + Math.cos(angleOffset) * spawnRadius;
         const by = canvas.height/2 + Math.sin(angleOffset) * spawnRadius;
 
-        const speedBase = 0.5 + Math.random() * 0.5;
-        const vx = Math.cos(angleOffset) * speedBase + spinSpeed * 0.05;
-        const vy = Math.sin(angleOffset) * speedBase + spinSpeed * 0.05;
+        const size = 60 + Math.random() * 60; // Large bubbles: 60–120px
+
+        const speedBase = 0.2 + Math.random() * 0.3;
+        const vx = Math.cos(angleOffset) * speedBase + spinSpeed * 0.03;
+        const vy = Math.sin(angleOffset) * speedBase + spinSpeed * 0.03;
 
         bubbles.push({
           x: bx,
           y: by,
-          r: 30 + Math.random() * 30,
+          r: size,
           vx: vx,
           vy: vy,
-          opacity: 0.7 + Math.random() * 0.3,
+          opacity: 0.6 + Math.random() * 0.3,
           popped: false
         });
       }
     }
-    setInterval(createBubble, 800);
+    setInterval(createBubble, 1000);
 
     function drawBubbles() {
       bubbles.forEach((b, i) => {
         if (!b.popped) {
+          // main translucent body
+          const grad = ctx.createRadialGradient(b.x, b.y, b.r * 0.7, b.x, b.y, b.r);
+          grad.addColorStop(0, "rgba(255,255,255,0.05)");
+          grad.addColorStop(0.7, "rgba(255,255,255,0.1)");
+          grad.addColorStop(1, "rgba(255,255,255,0.25)");
+
           ctx.beginPath();
           ctx.arc(b.x, b.y, b.r, 0, 2 * Math.PI);
-
-          const grad = ctx.createRadialGradient(b.x-b.r*0.3, b.y-b.r*0.3, b.r*0.1, b.x, b.y, b.r);
-          grad.addColorStop(0, `rgba(255,255,255,${b.opacity})`);
-          grad.addColorStop(1, `rgba(200,255,255,0.1)`);
-
           ctx.fillStyle = grad;
           ctx.fill();
-          ctx.strokeStyle = "rgba(255,255,255,0.5)";
+
+          // rainbow sheen
+          const rainbow = ctx.createLinearGradient(b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r);
+          rainbow.addColorStop(0, "rgba(255,0,255,0.2)");
+          rainbow.addColorStop(0.25, "rgba(0,255,255,0.2)");
+          rainbow.addColorStop(0.5, "rgba(0,255,0,0.15)");
+          rainbow.addColorStop(0.75, "rgba(255,255,0,0.2)");
+          rainbow.addColorStop(1, "rgba(255,0,0,0.2)");
+
+          ctx.strokeStyle = rainbow;
           ctx.lineWidth = 2;
           ctx.stroke();
 
+          // glossy highlight
+          ctx.beginPath();
+          ctx.arc(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.2, 0, 2 * Math.PI);
+          ctx.fillStyle = "rgba(255,255,255,0.35)";
+          ctx.fill();
+
+          // movement outward
           b.x += b.vx;
           b.y += b.vy;
-          b.r *= 0.995;
+          b.r *= 0.996;
 
-          if (b.r < 5) bubbles.splice(i, 1);
+          if (b.r < 6) bubbles.splice(i, 1);
         }
       });
     }
-
     canvas.addEventListener("click", (e) => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -182,6 +200,7 @@
       glowPulseTime += 0.02;
       const pulse = 50 + Math.sin(glowPulseTime) * 10;
 
+      // outer halo
       ctx.beginPath();
       ctx.arc(0, 0, radius + 12, 0, 2 * Math.PI);
       ctx.strokeStyle = "white";
@@ -190,6 +209,7 @@
       ctx.shadowBlur = pulse * 1.5;
       ctx.stroke();
 
+      // wheel slices
       for(let i=0;i<colors.length;i++){
         ctx.beginPath();
         ctx.moveTo(0,0);
