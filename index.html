@@ -62,41 +62,47 @@
     let wheelNoteIndex = 0;
     let bubbleNoteIndex = 0;
 
-    /* ---------- Bubble Rainfall Grid ---------- */
+    /* ---------- Natural Bubble Rain ---------- */
     let bubbles=[], ripples=[];
-    const cols = 8;         // bubbles across
-    const spacingX = 100;   // horizontal spacing
-    const spacingY = 120;   // vertical spacing
-    const bubbleSpeed = 2;  // steady fall speed
-    const bubbleSize = 50;  // bubble radius
+    const bubbleCount = 40;
+    const minSize = 70, maxSize = 110;
+    const minSpeed = 0.5, maxSpeed = 1.5;
 
     function initBubbles() {
       bubbles=[];
-      const rows = Math.ceil(canvas.height / spacingY) + 2;
-      for (let row=0; row<rows; row++) {
-        for (let col=0; col<cols; col++) {
-          bubbles.push({
-            x: col * spacingX + spacingX/2,
-            y: row * spacingY,
-            r: bubbleSize
-          });
-        }
+      for (let i=0; i<bubbleCount; i++) {
+        bubbles.push(newBubble());
       }
     }
 
+    function newBubble() {
+      return {
+        x: Math.random()*canvas.width,
+        y: -Math.random()*canvas.height,
+        r: minSize + Math.random()*(maxSize-minSize),
+        vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
+        drift: (Math.random()*0.6 - 0.3) // horizontal drift
+      };
+    }
+
     function drawBubbles(){
-      bubbles.forEach(b=>{
+      bubbles.forEach((b,i)=>{
         const g = ctx.createRadialGradient(b.x,b.y,b.r*0.4,b.x,b.y,b.r);
-        g.addColorStop(0,"rgba(255,255,255,0.1)");
+        g.addColorStop(0,"rgba(255,255,255,0.15)");
         g.addColorStop(1,"rgba(200,255,255,0.25)");
         ctx.beginPath();
         ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
         ctx.fillStyle=g;
         ctx.fill();
 
-        b.y += bubbleSpeed;
+        // movement
+        b.y += b.vy;
+        b.x += b.drift;
+
+        // recycle when off bottom
         if (b.y - b.r > canvas.height) {
-          b.y = -spacingY;
+          bubbles[i] = newBubble();
+          bubbles[i].y = -b.r;
         }
       });
     }
@@ -162,7 +168,7 @@
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
       radius = Math.min(canvas.width,canvas.height)*0.45;
-      initBubbles(); // rebuild grid when screen resizes
+      initBubbles();
     }
     window.addEventListener("resize", resizeCanvas);
 
