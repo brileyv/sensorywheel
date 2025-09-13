@@ -69,7 +69,7 @@
       if (bubbles.length >= 60) return; // cap ~60
 
       const size = 70 + Math.random()*40; // 70–110px
-      const speed = 1.0 + Math.random()*1.0; // faster: 1.0–2.0
+      const speed = 1.0 + Math.random()*1.0; // 1.0–2.0
       const x = Math.random()*canvas.width;
 
       // avoid clustering
@@ -101,7 +101,7 @@
 
         b.y += b.vy;
 
-        // recycle when leaving bottom
+        // recycle instantly when leaving bottom
         if(b.y - b.r > canvas.height){
           b.y = -b.r;
           b.x = Math.random()*canvas.width;
@@ -146,9 +146,24 @@
       osc.stop(audioCtx.currentTime + 0.5);
     }
 
+    // Polyphonic bubble pops 🎶
     function playBubblePop(x,y){
       const freq = scale[bubbleNoteIndex];
-      playNote(freq,"sine");
+      ensureAudio();
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.5);
+
       ripples.push({ x, y, radius:20, alpha:0.8 });
       bubbleNoteIndex = (bubbleNoteIndex + 1) % scale.length;
     }
@@ -197,78 +212,80 @@
 
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBubbles(); drawRipples(); drawWheel();
+
+      // ensure minimum bubble count
+      if (bubbles.length < 40) {
+        for (let i = 0; i < 5; i++) createBubblesBackground();
+      }
+
       requestAnimationFrame(animate);
     }
 
-    /* ---------- Controls ---------- */
-    let activeTouches=[]; let tapStartX=0,tapStartY=0,tapStartTime=0;
+    /* ---------- Wheel controls (single-finger spin, multi-finger pops) ---------- */
+    let activeFingerId = null;
+    let tapStartX=0,tapStartY=0,tapStartTime=0;
 
     function getPointerAngle(x,y){
       const r=canvas.getBoundingClientRect();
       const cx=r.left+canvas.width/2, cy=r.top+canvas.height/2;
       return Math.atan2(y-cy, x-cx);
     }
-    function getAverageAngle(touches){
-      let sumX=0, sumY=0;
-      const rect=canvas.getBoundingClientRect();
-      for (let t of touches){
-        const x=(t.clientX||t.pageX)-rect.left;
-        const y=(t.clientY||t.pageY)-rect.top;
-        sumX+=x; sumY+=y;
-      }
-      return getPointerAngle(sumX/touches.length,sumY/touches.length);
-    }
 
     function pointerDown(e){
       const rect=canvas.getBoundingClientRect();
-      const x=(e.clientX||e.touches[0].clientX)-rect.left;
-      const y=(e.clientY||e.touches[0].clientY)-rect.top;
+      const x=(e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+      const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
       const dx=x-canvas.width/2, dy=y-canvas.height/2;
 
-      if (Math.hypot(dx,dy) <= radius) {
+      // First finger inside wheel = spin
+      if (Math.hypot(dx,dy) <= radius && activeFingerId === null) {
         isDragging=true;
-        activeTouches=e.touches?[...e.touches]:[e];
-        lastAngle=getAverageAngle(activeTouches);
-        lastTime=Date.now(); spinSpeed=0;
+        activeFingerId = e.pointerId || (e.changedTouches && e.changedTouches[0].identifier);
+        lastAngle=getPointerAngle(x,y);
+        lastTime=Date.now();
+        spinSpeed=0;
+      } else {
+        // Any other finger = bubble pop
+        bubbles.forEach(b=>{
+          if(!b.popped){
+            const d=Math.hypot(b.x-x,b.y-y);
+            if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
+          }
+        });
       }
+
       tapStartX=x; tapStartY=y; tapStartTime=Date.now();
     }
 
     function pointerMove(e){
       if(!isDragging) return;
-      activeTouches=e.touches?[...e.touches]:[e];
-      const a=getAverageAngle(activeTouches);
+      if (e.pointerId && e.pointerId !== activeFingerId) return;
+      if (e.changedTouches && e.changedTouches[0].identifier !== activeFingerId) return;
+
+      const rect=canvas.getBoundingClientRect();
+      const x=(e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+      const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+      const a=getPointerAngle(x,y);
       const now=Date.now();
       const d=a-lastAngle;
-      angle+=d; spinSpeed=d/((now-lastTime)/1000);
-      lastAngle=a; lastTime=now;
+      angle+=d;
+      spinSpeed=d/((now-lastTime)/1000);
+      lastAngle=a;
+      lastTime=now;
     }
 
     function pointerUp(e){
-      if(e.touches && e.touches.length>0){
-        activeTouches=[...e.touches];
-        lastAngle=getAverageAngle(activeTouches);
-      } else {
-        if(isDragging){ isDragging=false; activeTouches=[]; }
-        else {
-          const rect=canvas.getBoundingClientRect();
-          const x=(e.clientX||tapStartX)-rect.left;
-          const y=(e.clientY||tapStartY)-rect.top;
-          const dx=x-tapStartX, dy=y-tapStartY;
-          const dist=Math.hypot(dx,dy);
-          const time=Date.now()-tapStartTime;
-          if(dist < 15 && time < 250){
-            bubbles.forEach(b=>{
-              if(!b.popped){
-                const d=Math.hypot(b.x-x,b.y-y);
-                if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
-              }
-            });
-          }
-        }
+      if (e.pointerId && e.pointerId === activeFingerId) {
+        isDragging=false;
+        activeFingerId=null;
+      }
+      if (e.changedTouches && e.changedTouches[0].identifier === activeFingerId) {
+        isDragging=false;
+        activeFingerId=null;
       }
     }
 
+    /* ---------- UI controls ---------- */
     muteBtn.onclick=()=>{
       soundEnabled=!soundEnabled;
       muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
@@ -286,14 +303,8 @@
     /* ---------- Start ---------- */
     window.onload=async()=>{
       resizeCanvas(); animate();
-      for (let i=0; i<30; i++) createBubblesBackground();
-      setInterval(() => {
-        if (bubbles.length < 30) {
-          for (let i=0; i<5; i++) createBubblesBackground();
-        } else {
-          createBubblesBackground();
-        }
-      }, 150);
+      for (let i=0; i<40; i++) createBubblesBackground();
+      setInterval(() => { createBubblesBackground(); }, 200);
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
