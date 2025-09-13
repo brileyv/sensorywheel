@@ -66,17 +66,17 @@
     let bubbles=[], ripples=[];
 
     function createBubblesBackground() {
-      if (bubbles.length >= 25) return; // cap ~25 to avoid walls
+      if (bubbles.length >= 60) return; // cap ~60
 
-      const size = 80 + Math.random()*50; // 80–130px
-      const speed = 0.6 + Math.random()*0.5; // fall speed
+      const size = 70 + Math.random()*40; // 70–110px
+      const speed = 1.0 + Math.random()*1.0; // faster: 1.0–2.0
       const x = Math.random()*canvas.width;
 
       // avoid clustering
       let tooClose = false;
       for (let b of bubbles) {
         const dist = Math.abs(b.x - x);
-        if (dist < b.r + size + 30) {
+        if (dist < b.r + size + 20) {
           tooClose = true;
           break;
         }
@@ -105,7 +105,7 @@
         if(b.y - b.r > canvas.height){
           b.y = -b.r;
           b.x = Math.random()*canvas.width;
-          b.vy = 0.6 + Math.random()*0.5;
+          b.vy = 1.0 + Math.random()*1.0;
           b.popped = false;
         }
       });
@@ -286,8 +286,14 @@
     /* ---------- Start ---------- */
     window.onload=async()=>{
       resizeCanvas(); animate();
-      for (let i=0; i<15; i++) createBubblesBackground();
-      setInterval(createBubblesBackground, 400);
+      for (let i=0; i<30; i++) createBubblesBackground();
+      setInterval(() => {
+        if (bubbles.length < 30) {
+          for (let i=0; i<5; i++) createBubblesBackground();
+        } else {
+          createBubblesBackground();
+        }
+      }, 150);
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
