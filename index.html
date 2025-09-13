@@ -117,7 +117,7 @@
       });
     }
 
-    /* ---------- Natural Bubble Pop ---------- */
+    /* ---------- Realistic Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -129,31 +129,31 @@
 
       const now = audioCtx.currentTime;
 
-      // short airy noise burst
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
+      // sharp noise snap
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.06, audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/data.length, 0.3);
       }
       const noise = audioCtx.createBufferSource();
       noise.buffer = buffer;
       const noiseGain = audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.35, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      noiseGain.gain.setValueAtTime(0.25 + Math.random()*0.1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
       noise.connect(noiseGain).connect(masterGain);
       noise.start(now);
-      noise.stop(now + 0.05);
+      noise.stop(now + 0.06);
 
-      // tiny high click
+      // soft low plop
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = "square";
-      osc.frequency.setValueAtTime(1000, now);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(120 + Math.random()*20, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       osc.connect(gain).connect(masterGain);
       osc.start(now);
-      osc.stop(now + 0.03);
+      osc.stop(now + 0.08);
 
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
