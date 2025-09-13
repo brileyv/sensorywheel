@@ -69,41 +69,41 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesBackground() {
-      if (bubbles.length >= 32) return; // cap ~32
+      if (bubbles.length >= 40) return; // cap ~40
 
       const edge = Math.floor(Math.random()*4); // all 4 sides
       let bx, by, vx, vy;
 
-      const size = 70 + Math.random()*40; // 70–110px
-      const speed = 0.4 + Math.random()*0.3; // slower drift: 0.4–0.7
+      const size = 70 + Math.random()*30; // 70–100px
+      const speed = 0.7 + Math.random()*0.5; // 0.7–1.2
 
       if (edge === 0) { // top
         bx = Math.random()*canvas.width;
         by = -size;
-        vx = (Math.random()-0.5)*0.5;
+        vx = (Math.random()-0.5)*0.6;
         vy = speed;
       } else if (edge === 1) { // right
         bx = canvas.width + size;
         by = Math.random()*canvas.height;
         vx = -speed;
-        vy = (Math.random()-0.5)*0.5;
+        vy = (Math.random()-0.5)*0.6;
       } else if (edge === 2) { // bottom
         bx = Math.random()*canvas.width;
         by = canvas.height + size;
-        vx = (Math.random()-0.5)*0.5;
+        vx = (Math.random()-0.5)*0.6;
         vy = -speed;
       } else { // left
         bx = -size;
         by = Math.random()*canvas.height;
         vx = speed;
-        vy = (Math.random()-0.5)*0.5;
+        vy = (Math.random()-0.5)*0.6;
       }
 
       // --- prevent overlapping spawn ---
       let tooClose = false;
       for (let b of bubbles) {
         const dist = Math.hypot(b.x - bx, b.y - by);
-        if (dist < b.r + size + 25) {
+        if (dist < b.r + size + 15) { // leave ~15px gap
           tooClose = true;
           break;
         }
@@ -328,11 +328,11 @@
     window.onload=async()=>{
       resizeCanvas(); animate();
       // Spawn a bunch right away
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 15; i++) {
         createBubblesBackground();
       }
-      // Keep spawning quickly
-      setInterval(createBubblesBackground, 250);
+      // Constant fast flow
+      setInterval(createBubblesBackground, 120);
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
