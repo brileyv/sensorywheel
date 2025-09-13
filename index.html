@@ -49,6 +49,9 @@
     const muteBtn = document.getElementById("muteBtn");
     const volumeSlider = document.getElementById("volumeSlider");
 
+    // Wheel radius
+    let radius = 100; // safe default
+
     // Resize canvas fullscreen
     function resizeCanvas() {
       canvas.width = window.innerWidth;
@@ -56,9 +59,7 @@
       radius = Math.min(canvas.width, canvas.height) * 0.45;
     }
     window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
 
-    let radius;
     const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
     // Notes
@@ -263,6 +264,8 @@
     canvas.addEventListener("touchmove", pointerMove);
     canvas.addEventListener("touchend", pointerUp);
 
+    // ✅ Ensure resize before animation
+    resizeCanvas();
     animate();
   </script>
 </body>
