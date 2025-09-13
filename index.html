@@ -2,109 +2,146 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Spin & Glow Wheel</title>
+  <title>Spin Sensory Wheel</title>
   <style>
-    body {
-      margin: 0;
-      background: radial-gradient(circle at center, #1a0033, #0a0011);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
+    body { margin:0; background:#0a0011; overflow:hidden; }
+    canvas { display:block; touch-action:none; }
+    #muteBtn, #upgradeBtn, #babyLockBtn {
+      position:absolute; right:15px; padding:8px 16px;
+      border:none; border-radius:20px; background:#fff;
+      box-shadow:0 0 6px rgba(0,0,0,0.3); font-size:14px; cursor:pointer;
     }
-    canvas {
-      display: block;
-      touch-action: none;
-    }
-    #muteBtn {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      padding: 10px 18px;
-      border: none;
-      border-radius: 20px;
-      background: #fff;
-      color: #333;
-      font-size: 16px;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(0,0,0,0.3);
-    }
-    #volumeSlider {
-      position: absolute;
-      top: 55px;
-      right: 15px;
-      width: 120px;
+    #muteBtn { top:15px; }
+    #volumeSlider { position:absolute; top:55px; right:15px; width:120px; }
+    #upgradeBtn { bottom:15px; }
+    #babyLockBtn { bottom:55px; display:none; left:15px; right:auto; }
+    #babyLockInfo {
+      display:none; position:absolute; bottom:0; left:0; right:0;
+      padding:8px; text-align:center; font-size:14px; color:#fff;
+      background:rgba(0,0,0,0.5);
     }
   </style>
 </head>
 <body>
   <button id="muteBtn">🔊 Sound On</button>
   <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
+  <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+  <button id="babyLockBtn">Enable Baby Lock</button>
+  <div id="babyLockInfo">🔒 Baby Lock enabled. To exit: Hold Back + Overview buttons.</div>
   <canvas id="wheelCanvas"></canvas>
+  <script type="module">
+    import { showBanner, hideBanner } from "./ads.js";
+    import { initIAP, buyUnlock, checkUnlock, enableBabyLock } from "./iap.js";
 
-  <script>
-    const canvas = document.getElementById("wheelCanvas");
-    const ctx = canvas.getContext("2d");
-    const muteBtn = document.getElementById("muteBtn");
-    const volumeSlider = document.getElementById("volumeSlider");
+    const canvas=document.getElementById("wheelCanvas"),ctx=canvas.getContext("2d");
+    const muteBtn=document.getElementById("muteBtn"),volumeSlider=document.getElementById("volumeSlider");
 
-    let radius = 100;
+    let radius=100,audioCtx=null,masterGain=null,soundEnabled=true,volume=0.5;
+    let angle=0,spinSpeed=0,friction=0.985,isDragging=false,lastAngle=0,lastTime=0,glowPulseTime=0,lastSlice=null,lastSoundTime=0;
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth || 600;
-      canvas.height = window.innerHeight || 600;
-      const minSide = Math.min(canvas.width, canvas.height);
-      radius = (minSide > 0 ? minSide : 600) * 0.45;
+    const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
+    const notes=[261.63,293.66,329.63,392.0,440.0,493.88,523.25];
+
+    // --- Bubble system ---
+    let bubbles = [];
+    function createBubble() {
+      if (bubbles.length < 8) {
+        bubbles.push({
+          x: Math.random() * canvas.width,
+          y: canvas.height + 50,
+          r: 20 + Math.random() * 20,
+          speed: 0.3 + Math.random() * 0.7,
+          popped: false
+        });
+      }
     }
-    window.addEventListener("resize", resizeCanvas);
+    setInterval(createBubble, 3000);
 
-    const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
+    function drawBubbles() {
+      bubbles.forEach((b, i) => {
+        if (!b.popped) {
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, 2 * Math.PI);
+          ctx.fillStyle = "rgba(200,255,255,0.25)";
+          ctx.strokeStyle = "rgba(255,255,255,0.5)";
+          ctx.lineWidth = 2;
+          ctx.fill();
+          ctx.stroke();
+          b.y -= b.speed;
+          if (b.y + b.r < 0) bubbles.splice(i, 1);
+        }
+      });
+    }
 
-    const notes = [261.63, 293.66, 329.63, 392.0, 440.0, 493.88, 523.25];
-
-    let audioCtx = null;
-    let masterGain = null;
-    let soundEnabled = true;
-    let volume = 0.5;
-
-    let angle = 0;
-    let spinSpeed = 0;
-    const friction = 0.985;
-
-    let isDragging = false;
-    let lastAngle = 0;
-    let lastTime = 0;
-
-    let glowPulseTime = 0;
-    let lastSlice = null;
-    let lastSoundTime = 0;
-
-    function getPointerAngle(x, y) {
+    canvas.addEventListener("click", (e) => {
       const rect = canvas.getBoundingClientRect();
-      const cx = rect.left + canvas.width / 2;
-      const cy = rect.top + canvas.height / 2;
-      return Math.atan2(y - cy, x - cx);
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      bubbles.forEach(b => {
+        if (!b.popped) {
+          const dist = Math.hypot(b.x - x, b.y - y);
+          if (dist < b.r) {
+            b.popped = true;
+            playBubblePop();
+          }
+        }
+      });
+    });
+
+    function playBubblePop() {
+      if (!soundEnabled || !audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }
+    // --- Wheel functions ---
+    function resizeCanvas(){
+      canvas.width=window.innerWidth||600;
+      canvas.height=window.innerHeight||600;
+      const m=Math.min(canvas.width,canvas.height);
+      radius=(m>0?m:600)*0.45;
+    }
+    window.addEventListener("resize",resizeCanvas);
+
+    function getPointerAngle(x,y){
+      const r=canvas.getBoundingClientRect(),
+            cx=r.left+canvas.width/2,
+            cy=r.top+canvas.height/2;
+      return Math.atan2(y-cy,x-cx);
     }
 
-    function drawWheel() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const x = canvas.width / 2;
-      const y = canvas.height / 2;
-      const numSlices = colors.length;
-
+    function drawWheel(){
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(canvas.width/2,canvas.height/2);
       ctx.rotate(angle);
 
       glowPulseTime += 0.02;
-      const pulse = 20 + Math.sin(glowPulseTime) * 10;
+      const pulse = 50 + Math.sin(glowPulseTime) * 10;
 
-      for (let i = 0; i < numSlices; i++) {
+      // Outer white halo
+      ctx.beginPath();
+      ctx.arc(0, 0, radius + 12, 0, 2 * Math.PI);
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 4;
+      ctx.shadowColor = "white";
+      ctx.shadowBlur = pulse * 1.5;
+      ctx.stroke();
+
+      // Wheel slices with glow
+      for(let i=0;i<colors.length;i++){
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, radius, (i * 2 * Math.PI) / numSlices, ((i + 1) * 2 * Math.PI) / numSlices);
+        ctx.moveTo(0,0);
+        ctx.arc(0,0,radius,
+          (i*2*Math.PI)/colors.length,
+          ((i+1)*2*Math.PI)/colors.length
+        );
         ctx.closePath();
         ctx.fillStyle = colors[i];
         ctx.shadowColor = colors[i];
@@ -112,132 +149,118 @@
         ctx.fill();
       }
 
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 5, 0, 2 * Math.PI);
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 5;
-      ctx.shadowColor = "#fff";
-      ctx.shadowBlur = pulse + 20;
-      ctx.stroke();
-
       ctx.restore();
     }
-
-    function animate() {
-      if (!isDragging) {
-        angle += spinSpeed;
-        spinSpeed *= friction;
+    function animate(){
+      if(!isDragging){
+        angle+=spinSpeed;
+        spinSpeed*=friction;
       }
+      const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
+      const now=performance.now();
 
-      const numSlices = colors.length;
-      const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      const currentSlice = Math.floor((normalized / (2 * Math.PI)) * numSlices);
-
-      const now = performance.now();
-      if (currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 100) {
-        if (spinSpeed > 0) {
-          playTone(notes[currentSlice % notes.length], 0.25, "sine", "cw");  // bell
+      if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
+        if(spinSpeed>0){
+          playTone(notes[currentSlice%notes.length],0.25,"sine","cw");
         } else {
-          playTone(notes[currentSlice % notes.length] / 2, 0.3, "triangle", "ccw"); // marimba pluck
+          playTone(notes[currentSlice%notes.length]/2,0.25,"triangle","ccw");
         }
-        lastSlice = currentSlice;
-        lastSoundTime = now;
+        lastSlice=currentSlice;
+        lastSoundTime=now;
       }
 
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawBubbles();
       drawWheel();
       requestAnimationFrame(animate);
     }
 
-    function playTone(freq, duration, type, direction = "cw") {
-      if (!soundEnabled) return;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = volume;
+    function playTone(freq,duration,type,dir="cw"){
+      if(!soundEnabled) return;
+      if(!audioCtx){
+        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        masterGain=audioCtx.createGain();
+        masterGain.gain.value=volume;
         masterGain.connect(audioCtx.destination);
       }
-
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
-      if (direction === "cw") {
-        // Clockwise = bright bell
-        gain.gain.setValueAtTime(0, audioCtx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
-        gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + duration - 0.05);
-        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+      const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+      osc.type=type;
+      osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+      if(dir==="cw"){
+        gain.gain.setValueAtTime(0,audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.02);
+        gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+duration-0.05);
+        gain.gain.linearRampToValueAtTime(0,audioCtx.currentTime+duration);
       } else {
-        // Counterclockwise = marimba-like pluck
-        gain.gain.setValueAtTime(0, audioCtx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(0,audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.18,audioCtx.currentTime+0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
       }
-
       osc.connect(gain);
       gain.connect(masterGain);
-
       osc.start();
-      osc.stop(audioCtx.currentTime + duration);
+      osc.stop(audioCtx.currentTime+duration);
     }
 
-    // Pointer handling
-    function pointerDown(e) {
-      isDragging = true;
-      lastAngle = getPointerAngle(
-        e.clientX || e.touches[0].clientX,
-        e.clientY || e.touches[0].clientY
+    function pointerDown(e){
+      isDragging=true;
+      lastAngle=getPointerAngle(
+        e.clientX||e.touches[0].clientX,
+        e.clientY||e.touches[0].clientY
       );
-      lastTime = Date.now();
-      spinSpeed = 0;
+      lastTime=Date.now();
+      spinSpeed=0;
     }
 
-    function pointerMove(e) {
-      if (!isDragging) return;
-      const currentAngle = getPointerAngle(
-        e.clientX || e.touches[0].clientX,
-        e.clientY || e.touches[0].clientY
+    function pointerMove(e){
+      if(!isDragging) return;
+      const a=getPointerAngle(
+        e.clientX||e.touches[0].clientX,
+        e.clientY||e.touches[0].clientY
       );
-      const now = Date.now();
-      const deltaAngle = currentAngle - lastAngle;
-
-      angle += deltaAngle;
-      spinSpeed = deltaAngle / ((now - lastTime) / 1000);
-
-      lastAngle = currentAngle;
-      lastTime = now;
+      const now=Date.now();
+      const delta=a-lastAngle;
+      angle+=delta;
+      spinSpeed=delta/((now-lastTime)/1000);
+      lastAngle=a;
+      lastTime=now;
     }
 
-    function pointerUp() {
-      isDragging = false;
-    }
+    function pointerUp(){ isDragging=false; }
 
-    // Controls
-    muteBtn.addEventListener("click", () => {
-      soundEnabled = !soundEnabled;
-      muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
-    });
+    muteBtn.onclick=()=>{
+      soundEnabled=!soundEnabled;
+      muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
+    };
 
-    volumeSlider.addEventListener("input", (e) => {
-      volume = parseFloat(e.target.value);
-      if (masterGain) {
-        masterGain.gain.value = volume;
-      }
-    });
+    volumeSlider.oninput=e=>{
+      volume=parseFloat(e.target.value);
+      if(masterGain){ masterGain.gain.value=volume; }
+    };
 
-    canvas.addEventListener("mousedown", pointerDown);
-    canvas.addEventListener("mousemove", pointerMove);
-    canvas.addEventListener("mouseup", pointerUp);
+    canvas.addEventListener("mousedown",pointerDown);
+    canvas.addEventListener("mousemove",pointerMove);
+    canvas.addEventListener("mouseup",pointerUp);
 
-    canvas.addEventListener("touchstart", pointerDown);
-    canvas.addEventListener("touchmove", pointerMove);
-    canvas.addEventListener("touchend", pointerUp);
+    canvas.addEventListener("touchstart",pointerDown);
+    canvas.addEventListener("touchmove",pointerMove);
+    canvas.addEventListener("touchend",pointerUp);
 
-    window.onload = () => {
+    // ---- APP MODE LOGIC ----
+    window.onload = async () => {
       resizeCanvas();
       animate();
+      await initIAP();
+      const unlocked = await checkUnlock();
+      if (!unlocked) {
+        showBanner();
+        document.getElementById("upgradeBtn").onclick = buyUnlock;
+      } else {
+        document.getElementById("upgradeBtn").style.display = "none";
+        document.getElementById("babyLockBtn").style.display = "block";
+        document.getElementById("babyLockBtn").onclick = enableBabyLock;
+      }
     };
   </script>
 </body>
