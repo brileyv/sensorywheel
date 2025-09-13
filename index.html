@@ -69,8 +69,8 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesFromSpin() {
-      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.02, 0.08);
-      if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance) {
+      const spawnChance = Math.min(Math.abs(spinSpeed) * 0.04, 0.15); // spawn more often
+      if (Math.abs(spinSpeed) > 0.01 && Math.random() < spawnChance && bubbles.length < 12) {
         const angleOffset = angle + (Math.random()*0.5 - 0.25);
         const spawnRadius = radius + 12;
         const bx = canvas.width/2 + Math.cos(angleOffset)*spawnRadius;
