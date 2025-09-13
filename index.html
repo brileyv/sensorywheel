@@ -117,7 +117,7 @@
       });
     }
 
-    /* ---------- Simple Bubble Pop ---------- */
+    /* ---------- Natural Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -128,20 +128,35 @@
       }
 
       const now = audioCtx.currentTime;
+
+      // short noise burst for "air pop"
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length); // fade out
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.3 + Math.random()*0.2, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      noise.connect(noiseGain).connect(masterGain);
+      noise.start(now);
+      noise.stop(now + 0.1);
+
+      // quick sine "plop"
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.type = "sine";
-      osc.frequency.setValueAtTime(800, now);
-      osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
-
-      gain.gain.setValueAtTime(0.5, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
+      osc.frequency.setValueAtTime(300 + Math.random()*50, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc.connect(gain).connect(masterGain);
       osc.start(now);
-      osc.stop(now + 0.2);
+      osc.stop(now + 0.15);
 
+      // visual ripple
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
@@ -261,7 +276,8 @@
         const dist=Math.hypot(dx,dy);
         const time=Date.now()-tapStartTime;
 
-        if(dist<15 && time<250){
+        // Only treat as tap if not a drag
+        if(dist < 15 && time < 250){
           bubbles.forEach(b=>{
             if(!b.popped){
               const d=Math.hypot(b.x-x,b.y-y);
