@@ -15,7 +15,7 @@
     }
     canvas {
       display: block;
-      touch-action: none; /* prevents pinch/zoom on touch devices */
+      touch-action: none;
     }
     #muteBtn {
       position: absolute;
@@ -34,18 +34,29 @@
 </head>
 <body>
   <button id="muteBtn">🔊 Sound On</button>
-  <canvas id="wheelCanvas" width="600" height="600"></canvas>
+  <canvas id="wheelCanvas"></canvas>
 
   <script>
     const canvas = document.getElementById("wheelCanvas");
     const ctx = canvas.getContext("2d");
     const muteBtn = document.getElementById("muteBtn");
 
-    const radius = 250; // fixed, never resizes
+    // Fullscreen canvas
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    let radius = Math.min(canvas.width, canvas.height) * 0.45; // big, 90% of screen size
     const colors = ["#ff007f", "#ff7f00", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#8b00ff"];
 
-    // Musical notes
+    // Notes for clockwise
     const notes = [261.63, 293.66, 329.63, 392.0, 440.0, 493.88, 523.25];
+    // Lower pad-like tones for counterclockwise
+    const counterNotes = [174.61, 196.0, 220.0, 246.94, 261.63, 293.66, 329.63];
+
     let audioCtx = null;
     let soundEnabled = true;
 
@@ -57,10 +68,7 @@
     let lastAngle = 0;
     let lastTime = 0;
 
-    // glow pulse
     let glowPulseTime = 0;
-
-    // track slice for sound
     let lastSlice = null;
 
     function getPointerAngle(x, y) {
@@ -112,13 +120,16 @@
         spinSpeed *= friction;
       }
 
-      // detect slice & play sound
       const numSlices = colors.length;
       const normalized = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       const currentSlice = Math.floor((normalized / (2 * Math.PI)) * numSlices);
 
-      if (currentSlice !== lastSlice && spinSpeed > 0.05) {
-        playTone(notes[currentSlice % notes.length], 0.15);
+      if (currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05) {
+        if (spinSpeed > 0) {
+          playTone(notes[currentSlice % notes.length], 0.15, "sine");
+        } else {
+          playTone(counterNotes[currentSlice % counterNotes.length], 0.25, "triangle");
+        }
         lastSlice = currentSlice;
       }
 
@@ -126,15 +137,14 @@
       requestAnimationFrame(animate);
     }
 
-    // sound helper
-    function playTone(freq, duration) {
+    function playTone(freq, duration, type) {
       if (!soundEnabled) return;
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
-      osc.type = "sine";
+      osc.type = type;
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
 
@@ -145,7 +155,6 @@
       osc.stop(audioCtx.currentTime + duration);
     }
 
-    // gestures
     function pointerDown(e) {
       isDragging = true;
       lastAngle = getPointerAngle(
@@ -153,7 +162,7 @@
         e.clientY || e.touches[0].clientY
       );
       lastTime = Date.now();
-      spinSpeed = 0; // stop auto spin while dragging
+      spinSpeed = 0;
     }
 
     function pointerMove(e) {
@@ -165,9 +174,7 @@
       const now = Date.now();
       const deltaAngle = currentAngle - lastAngle;
 
-      // apply exact finger movement
       angle += deltaAngle;
-      // compute speed for when they let go
       spinSpeed = deltaAngle / ((now - lastTime) / 1000);
 
       lastAngle = currentAngle;
@@ -178,13 +185,11 @@
       isDragging = false;
     }
 
-    // mute toggle
     muteBtn.addEventListener("click", () => {
       soundEnabled = !soundEnabled;
       muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
     });
 
-    // bind mouse + touch
     canvas.addEventListener("mousedown", pointerDown);
     canvas.addEventListener("mousemove", pointerMove);
     canvas.addEventListener("mouseup", pointerUp);
