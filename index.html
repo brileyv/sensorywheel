@@ -69,13 +69,13 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesBackground() {
-      if (bubbles.length >= 40) return; // cap ~40
+      if (bubbles.length >= 45) return; // cap ~45
 
       const edge = Math.floor(Math.random()*4); // all 4 sides
       let bx, by, vx, vy;
 
-      const size = 70 + Math.random()*30; // 70–100px
-      const speed = 0.7 + Math.random()*0.5; // 0.7–1.2
+      const size = 100 + Math.random()*60; // bigger: 100–160px
+      const speed = 0.6 + Math.random()*0.6; // 0.6–1.2
 
       if (edge === 0) { // top
         bx = Math.random()*canvas.width;
@@ -103,7 +103,7 @@
       let tooClose = false;
       for (let b of bubbles) {
         const dist = Math.hypot(b.x - bx, b.y - by);
-        if (dist < b.r + size + 15) { // leave ~15px gap
+        if (dist < b.r + size + 20) { // 20px gap
           tooClose = true;
           break;
         }
@@ -225,6 +225,20 @@
     function animate(){
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
 
+      // 🔊 Wheel slice sounds
+      const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
+      const now=performance.now();
+      if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
+        if(spinSpeed>0){
+          playSliceTone(currentSlice,"cw");
+        } else {
+          playSliceTone(currentSlice,"ccw");
+        }
+        lastSlice=currentSlice;
+        lastSoundTime=now;
+      }
+
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBubbles(); drawRipples(); drawWheel();
       requestAnimationFrame(animate);
@@ -328,11 +342,11 @@
     window.onload=async()=>{
       resizeCanvas(); animate();
       // Spawn a bunch right away
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 20; i++) {
         createBubblesBackground();
       }
-      // Constant fast flow
-      setInterval(createBubblesBackground, 120);
+      // Constant dense flow
+      setInterval(createBubblesBackground, 100);
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
