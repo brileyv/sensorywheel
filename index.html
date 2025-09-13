@@ -69,34 +69,35 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesBackground() {
-      if (bubbles.length >= 24) return; // cap ~24
+      if (bubbles.length >= 28) return; // cap ~28
 
-      const edge = Math.floor(Math.random()*4); // 0=top,1=right,2=bottom,3=left
+      // Pick one of 4 edges evenly
+      const edge = Math.floor(Math.random()*4);
       let bx, by, vx, vy;
 
-      const size = 70 + Math.random()*40; // smaller: 70–110px
-      const speed = 0.3 + Math.random()*0.3; // faster: 0.3–0.6
+      const size = 70 + Math.random()*40; // 70–110px
+      const speed = 0.5 + Math.random()*0.5; // 0.5–1.0
 
       if (edge === 0) { // top
         bx = Math.random()*canvas.width;
         by = -size;
-        vx = (Math.random()-0.5)*0.4;
+        vx = (Math.random()-0.5)*0.5;
         vy = speed;
       } else if (edge === 1) { // right
         bx = canvas.width + size;
         by = Math.random()*canvas.height;
         vx = -speed;
-        vy = (Math.random()-0.5)*0.4;
+        vy = (Math.random()-0.5)*0.5;
       } else if (edge === 2) { // bottom
         bx = Math.random()*canvas.width;
         by = canvas.height + size;
-        vx = (Math.random()-0.5)*0.4;
+        vx = (Math.random()-0.5)*0.5;
         vy = -speed;
       } else { // left
         bx = -size;
         by = Math.random()*canvas.height;
         vx = speed;
-        vy = (Math.random()-0.5)*0.4;
+        vy = (Math.random()-0.5)*0.5;
       }
 
       // --- prevent overlapping spawn ---
@@ -327,7 +328,7 @@
 
     window.onload=async()=>{
       resizeCanvas(); animate();
-      setInterval(createBubblesBackground, 800); // spawn more often
+      setInterval(createBubblesBackground, 400); // spawn often
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
