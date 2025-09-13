@@ -62,37 +62,41 @@
     let wheelNoteIndex = 0;
     let bubbleNoteIndex = 0;
 
-    /* ---------- Bubbles ---------- */
+    /* ---------- Bubble Rainfall Grid ---------- */
     let bubbles=[], ripples=[];
+    const cols = 8;         // bubbles across
+    const spacingX = 100;   // horizontal spacing
+    const spacingY = 120;   // vertical spacing
+    const bubbleSpeed = 2;  // steady fall speed
+    const bubbleSize = 50;  // bubble radius
 
-    function createBubblesBackground() {
-      const size = 70 + Math.random()*40; // 70–110px
-      const speed = 1.0 + Math.random()*1.0; // 1.0–2.0
-      const x = Math.random()*canvas.width;
-
-      bubbles.push({ x, y: -size, r:size, vy:speed, popped:false });
+    function initBubbles() {
+      bubbles=[];
+      const rows = Math.ceil(canvas.height / spacingY) + 2;
+      for (let row=0; row<rows; row++) {
+        for (let col=0; col<cols; col++) {
+          bubbles.push({
+            x: col * spacingX + spacingX/2,
+            y: row * spacingY,
+            r: bubbleSize
+          });
+        }
+      }
     }
 
     function drawBubbles(){
       bubbles.forEach(b=>{
-        if(!b.popped){
-          const g = ctx.createRadialGradient(b.x,b.y,b.r*0.5,b.x,b.y,b.r);
-          g.addColorStop(0,"rgba(255,255,255,0.05)");
-          g.addColorStop(1,"rgba(200,255,255,0.25)");
-          ctx.beginPath();
-          ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
-          ctx.fillStyle=g;
-          ctx.fill();
-        }
+        const g = ctx.createRadialGradient(b.x,b.y,b.r*0.4,b.x,b.y,b.r);
+        g.addColorStop(0,"rgba(255,255,255,0.1)");
+        g.addColorStop(1,"rgba(200,255,255,0.25)");
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
+        ctx.fillStyle=g;
+        ctx.fill();
 
-        b.y += b.vy;
-
-        // recycle instantly when leaving bottom
-        if(b.y - b.r > canvas.height){
-          b.y = -b.r;
-          b.x = Math.random()*canvas.width;
-          b.vy = 1.0 + Math.random()*1.0;
-          b.popped = false;
+        b.y += bubbleSpeed;
+        if (b.y - b.r > canvas.height) {
+          b.y = -spacingY;
         }
       });
     }
@@ -132,7 +136,6 @@
       osc.stop(audioCtx.currentTime + 0.5);
     }
 
-    // Polyphonic bubble pops 🎶
     function playBubblePop(x,y){
       const freq = scale[bubbleNoteIndex];
       ensureAudio();
@@ -159,6 +162,7 @@
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
       radius = Math.min(canvas.width,canvas.height)*0.45;
+      initBubbles(); // rebuild grid when screen resizes
     }
     window.addEventListener("resize", resizeCanvas);
 
@@ -227,10 +231,8 @@
       } else {
         // Any other finger = bubble pop
         bubbles.forEach(b=>{
-          if(!b.popped){
-            const d=Math.hypot(b.x-x,b.y-y);
-            if(d<b.r){ b.popped=true; playBubblePop(b.x,b.y); }
-          }
+          const d=Math.hypot(b.x-x,b.y-y);
+          if(d<b.r){ playBubblePop(b.x,b.y); }
         });
       }
     }
@@ -281,8 +283,7 @@
     /* ---------- Start ---------- */
     window.onload=async()=>{
       resizeCanvas(); animate();
-      // Create 60 bubbles immediately
-      for (let i=0; i<60; i++) createBubblesBackground();
+      initBubbles();
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
