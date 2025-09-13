@@ -116,7 +116,7 @@
       });
     }
 
-    /* ---------- Synthetic Bubble Pop ---------- */
+    /* ---------- Watery Bubble Pop ---------- */
     function playBubblePop(x,y){
       if (!soundEnabled) return;
       if (!audioCtx) {
@@ -126,24 +126,38 @@
         masterGain.connect(audioCtx.destination);
       }
 
+      const now = audioCtx.currentTime;
+
+      // Pitch drop
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.2);
-
-      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
       osc.connect(gain).connect(masterGain);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.2);
+
+      // Noise burst
+      const bufferSize = audioCtx.sampleRate * 0.05;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i=0; i<bufferSize; i++) data[i] = (Math.random()*2-1) * (1-i/bufferSize);
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.3, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.05);
+      noise.connect(noiseGain).connect(masterGain);
+      noise.start(now);
+      noise.stop(now+0.05);
 
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
-    // Click/tap pops bubbles
+    // Bubble click
     canvas.addEventListener("click",(e)=>{
       const rect=canvas.getBoundingClientRect();
       const x=e.clientX-rect.left, y=e.clientY-rect.top;
@@ -154,7 +168,7 @@
         }
       });
     });
-    /* ---------- Wheel + Spin ---------- */
+    /* ---------- Wheel + Spin with Multi-touch ---------- */
     function resizeCanvas(){
       canvas.width = window.innerWidth || 600;
       canvas.height= window.innerHeight || 600;
@@ -166,6 +180,18 @@
       const r=canvas.getBoundingClientRect();
       const cx=r.left+canvas.width/2, cy=r.top+canvas.height/2;
       return Math.atan2(y-cy, x-cx);
+    }
+
+    function getAverageAngle(touches){
+      let sumX=0, sumY=0;
+      const rect=canvas.getBoundingClientRect();
+      for (let t of touches){
+        const x=(t.clientX||t.pageX)-rect.left;
+        const y=(t.clientY||t.pageY)-rect.top;
+        sumX+=x; sumY+=y;
+      }
+      const avgX=sumX/touches.length, avgY=sumY/touches.length;
+      return getPointerAngle(avgX, avgY);
     }
 
     function drawWheel(){
@@ -186,11 +212,11 @@
       if(!isDragging){ angle += spinSpeed; spinSpeed *= friction; }
       createBubblesFromSpin();
 
-      const normalized = ((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
-      const currentSlice = Math.floor((normalized/(2*Math.PI))*colors.length);
-      const now = performance.now();
-      if (currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
-        playSliceTone(currentSlice, spinSpeed>0 ? "cw" : "ccw");
+      const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
+      const now=performance.now();
+      if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
+        playSliceTone(currentSlice, spinSpeed>0?"cw":"ccw");
         lastSlice=currentSlice; lastSoundTime=now;
       }
 
@@ -200,20 +226,20 @@
     }
 
     function ensureAudio(){
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = volume;
+      if(!audioCtx){
+        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        masterGain=audioCtx.createGain();
+        masterGain.gain.value=volume;
         masterGain.connect(audioCtx.destination);
       }
     }
-    function playSliceTone(sliceIndex, dir){
+    function playSliceTone(sliceIndex,dir){
       if(!soundEnabled) return;
       ensureAudio();
-      const freq = (dir==="cw" ? notes[sliceIndex%notes.length] : notes[sliceIndex%notes.length]/2);
-      const osc = audioCtx.createOscillator(), gain=audioCtx.createGain();
-      osc.type = (dir==="cw" ? "sine" : "triangle");
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      const freq=(dir==="cw"?notes[sliceIndex%notes.length]:notes[sliceIndex%notes.length]/2);
+      const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+      osc.type=(dir==="cw"?"sine":"triangle");
+      osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
       gain.gain.setValueAtTime(0,audioCtx.currentTime);
       gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.02);
       gain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.2);
@@ -222,30 +248,38 @@
       osc.start(); osc.stop(audioCtx.currentTime+0.25);
     }
 
+    let activeTouches=[];
     function pointerDown(e){
       isDragging=true;
-      const x = e.touches ? e.touches[0].clientX : e.clientX;
-      const y = e.touches ? e.touches[0].clientY : e.clientY;
-      lastAngle = getPointerAngle(x,y); lastTime=Date.now(); spinSpeed=0;
+      activeTouches=e.touches?[...e.touches]:[e];
+      lastAngle=getAverageAngle(activeTouches);
+      lastTime=Date.now(); spinSpeed=0;
     }
     function pointerMove(e){
       if(!isDragging) return;
-      const x = e.touches ? e.touches[0].clientX : e.clientX;
-      const y = e.touches ? e.touches[0].clientY : e.clientY;
-      const a = getPointerAngle(x,y);
-      const now=Date.now(), d=a-lastAngle;
+      activeTouches=e.touches?[...e.touches]:[e];
+      const a=getAverageAngle(activeTouches);
+      const now=Date.now();
+      const d=a-lastAngle;
       angle+=d; spinSpeed=d/((now-lastTime)/1000);
       lastAngle=a; lastTime=now;
     }
-    function pointerUp(){ isDragging=false; }
+    function pointerUp(e){
+      if(e.touches && e.touches.length>0){
+        activeTouches=[...e.touches];
+        lastAngle=getAverageAngle(activeTouches);
+      } else {
+        isDragging=false; activeTouches=[];
+      }
+    }
 
     muteBtn.onclick=()=>{
       soundEnabled=!soundEnabled;
-      muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
+      muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
     };
     volumeSlider.oninput=e=>{
       volume=parseFloat(e.target.value);
-      if(masterGain){ masterGain.gain.value = volume; }
+      if(masterGain){ masterGain.gain.value=volume; }
     };
 
     canvas.addEventListener("mousedown",pointerDown);
@@ -255,14 +289,13 @@
     canvas.addEventListener("touchmove",pointerMove,{passive:false});
     canvas.addEventListener("touchend",pointerUp);
 
-    window.onload = async () => {
-      resizeCanvas();
-      animate();   // start spinning loop immediately
+    window.onload=async()=>{
+      resizeCanvas(); animate();
       await initIAP();
-      const unlocked = await checkUnlock();
-      if (!unlocked) {
+      const unlocked=await checkUnlock();
+      if(!unlocked){
         showBanner();
-        document.getElementById("upgradeBtn").onclick = buyUnlock;
+        document.getElementById("upgradeBtn").onclick=buyUnlock;
       } else {
         document.getElementById("upgradeBtn").style.display="none";
         document.getElementById("babyLockBtn").style.display="block";
