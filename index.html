@@ -345,8 +345,17 @@
       for (let i = 0; i < 20; i++) {
         createBubblesBackground();
       }
-      // Constant dense flow
-      setInterval(createBubblesBackground, 100);
+      // Constant flow, guarantee at least 20 bubbles
+      setInterval(() => {
+        if (bubbles.length < 20) {
+          for (let i = 0; i < 5; i++) {
+            createBubblesBackground();
+          }
+        } else {
+          createBubblesBackground();
+        }
+      }, 100);
+
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
