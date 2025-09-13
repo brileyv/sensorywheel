@@ -116,15 +116,34 @@
       });
     }
 
-    /* ---------- Bubble Pop Sound (simple) ---------- */
+    /* ---------- Synthetic Bubble Pop ---------- */
     function playBubblePop(x,y){
-      if(!soundEnabled) return;
-      const pop = new Audio("bubble-pop-06-351337.mp3");
-      pop.volume = Math.min(1, volume*0.8);
-      pop.play().catch(()=>{});
-      ripples.push({x,y,radius:20,alpha:0.8});
+      if (!soundEnabled) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volume;
+        masterGain.connect(audioCtx.destination);
+      }
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.2);
+
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+
+      osc.connect(gain).connect(masterGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+
+      ripples.push({ x, y, radius:20, alpha:0.8 });
     }
 
+    // Click/tap pops bubbles
     canvas.addEventListener("click",(e)=>{
       const rect=canvas.getBoundingClientRect();
       const x=e.clientX-rect.left, y=e.clientY-rect.top;
