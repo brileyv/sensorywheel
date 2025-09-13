@@ -69,14 +69,13 @@
     let bubbleNoteIndex = 0;
 
     function createBubblesBackground() {
-      if (bubbles.length >= 28) return; // cap ~28
+      if (bubbles.length >= 32) return; // cap ~32
 
-      // Pick one of 4 edges evenly
-      const edge = Math.floor(Math.random()*4);
+      const edge = Math.floor(Math.random()*4); // all 4 sides
       let bx, by, vx, vy;
 
       const size = 70 + Math.random()*40; // 70–110px
-      const speed = 0.5 + Math.random()*0.5; // 0.5–1.0
+      const speed = 0.4 + Math.random()*0.3; // slower drift: 0.4–0.7
 
       if (edge === 0) { // top
         bx = Math.random()*canvas.width;
@@ -328,7 +327,12 @@
 
     window.onload=async()=>{
       resizeCanvas(); animate();
-      setInterval(createBubblesBackground, 400); // spawn often
+      // Spawn a bunch right away
+      for (let i = 0; i < 10; i++) {
+        createBubblesBackground();
+      }
+      // Keep spawning quickly
+      setInterval(createBubblesBackground, 250);
       await initIAP();
       const unlocked=await checkUnlock();
       if(!unlocked){
