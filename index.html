@@ -129,8 +129,8 @@
 
       const now = audioCtx.currentTime;
 
-      // Noise burst
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate);
+      // short airy noise burst
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) {
         data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
@@ -138,23 +138,22 @@
       const noise = audioCtx.createBufferSource();
       noise.buffer = buffer;
       const noiseGain = audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.25, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      noiseGain.gain.setValueAtTime(0.35, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
       noise.connect(noiseGain).connect(masterGain);
       noise.start(now);
-      noise.stop(now + 0.08);
+      noise.stop(now + 0.05);
 
-      // Low sine "plop"
+      // tiny high click
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(400 + Math.random()*100, now);
-      osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.type = "square";
+      osc.frequency.setValueAtTime(1000, now);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
       osc.connect(gain).connect(masterGain);
       osc.start(now);
-      osc.stop(now + 0.15);
+      osc.stop(now + 0.03);
 
       ripples.push({ x, y, radius:20, alpha:0.8 });
     }
@@ -248,7 +247,6 @@
       const y=(e.clientY||e.touches[0].clientY)-rect.top;
       const dx=x-canvas.width/2, dy=y-canvas.height/2;
 
-      // Only spin if inside wheel
       if (Math.hypot(dx,dy) <= radius) {
         isDragging=true;
         activeTouches=e.touches?[...e.touches]:[e];
@@ -307,7 +305,6 @@
       if(masterGain){ masterGain.gain.value=volume; }
     };
 
-    // Use pointer events
     canvas.addEventListener("pointerdown",pointerDown);
     canvas.addEventListener("pointermove",pointerMove);
     canvas.addEventListener("pointerup",pointerUp);
