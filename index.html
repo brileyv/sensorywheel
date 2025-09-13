@@ -62,27 +62,31 @@
     let wheelNoteIndex = 0;
     let bubbleNoteIndex = 0;
 
-    /* ---------- Natural Bubble Rain ---------- */
+    /* ---------- Staggered Bubble Rain ---------- */
     let bubbles=[], ripples=[];
-    const bubbleCount = 40;
+    const bubbleCount = 30;
     const minSize = 70, maxSize = 110;
     const minSpeed = 0.5, maxSpeed = 1.5;
-
-    function initBubbles() {
-      bubbles=[];
-      for (let i=0; i<bubbleCount; i++) {
-        bubbles.push(newBubble());
-      }
-    }
 
     function newBubble() {
       return {
         x: Math.random()*canvas.width,
-        y: -Math.random()*canvas.height,
+        y: -Math.random()*100,
         r: minSize + Math.random()*(maxSize-minSize),
         vy: minSpeed + Math.random()*(maxSpeed-minSpeed),
-        drift: (Math.random()*0.6 - 0.3) // horizontal drift
+        drift: (Math.random()*0.6 - 0.3)
       };
+    }
+
+    function initBubbles() {
+      bubbles=[];
+      let spawnInterval = setInterval(()=>{
+        if (bubbles.length < bubbleCount) {
+          bubbles.push(newBubble());
+        } else {
+          clearInterval(spawnInterval);
+        }
+      }, 800); // spawn one every 0.8s
     }
 
     function drawBubbles(){
@@ -99,7 +103,7 @@
         b.y += b.vy;
         b.x += b.drift;
 
-        // recycle when off bottom
+        // recycle at bottom
         if (b.y - b.r > canvas.height) {
           bubbles[i] = newBubble();
           bubbles[i].y = -b.r;
@@ -212,7 +216,7 @@
       requestAnimationFrame(animate);
     }
 
-    /* ---------- Wheel controls (single-finger spin, multi-finger pops) ---------- */
+    /* ---------- Wheel controls ---------- */
     let activeFingerId = null;
 
     function getPointerAngle(x,y){
@@ -227,7 +231,6 @@
       const y=(e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
       const dx=x-canvas.width/2, dy=y-canvas.height/2;
 
-      // First finger inside wheel = spin
       if (Math.hypot(dx,dy) <= radius && activeFingerId === null) {
         isDragging=true;
         activeFingerId = e.pointerId || (e.changedTouches && e.changedTouches[0].identifier);
@@ -235,7 +238,6 @@
         lastTime=Date.now();
         spinSpeed=0;
       } else {
-        // Any other finger = bubble pop
         bubbles.forEach(b=>{
           const d=Math.hypot(b.x-x,b.y-y);
           if(d<b.r){ playBubblePop(b.x,b.y); }
