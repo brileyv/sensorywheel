@@ -13,18 +13,28 @@
       position:absolute; right:12px; bottom:14px; z-index:10;
       display:flex; flex-direction:column; align-items:flex-end; gap:10px;
     }
-    #muteBtn {
+    #muteBtn, #babyLockBtn {
       padding:10px 16px; border:0; border-radius:20px; 
       background:#222; color:#fff;
       box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
     }
     #volumeSlider {
       width:160px;
+      display:none;
     }
     #upgradeBtn {
       padding:12px 18px; border:0; border-radius:28px;
       background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
       box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
+    }
+    #instructions {
+      position:absolute; bottom:6px; left:0; right:0;
+      text-align:center; font-size:12px; color:rgba(255,255,255,0.5);
+      pointer-events:none;
+    }
+    #lockIcon {
+      position:absolute; top:10px; left:10px; font-size:22px;
+      color:#fff; opacity:0.6; display:none; pointer-events:none;
     }
   </style>
 </head>
@@ -33,7 +43,12 @@
     <button id="muteBtn">🔊 Sound On</button>
     <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+    <button id="babyLockBtn" style="display:none;">Enable Baby Lock</button>
   </div>
+  <div id="instructions">
+    Hold mute 3s for volume settings · Hold both top corners 3s to exit Baby Lock
+  </div>
+  <div id="lockIcon">🔒</div>
   <canvas id="wheelCanvas"></canvas>
 
   <script>
@@ -41,6 +56,67 @@
   const ctx = canvas.getContext("2d");
   const muteBtn = document.getElementById("muteBtn");
   const volumeSlider = document.getElementById("volumeSlider");
+  const upgradeBtn = document.getElementById("upgradeBtn");
+  const babyLockBtn = document.getElementById("babyLockBtn");
+  const lockIcon = document.getElementById("lockIcon");
+
+  /* ---------- Mock Upgrade ---------- */
+  let upgraded = false;
+  upgradeBtn.onclick=()=>{
+    alert("Upgrade successful! Baby Lock enabled.");
+    upgraded = true;
+    upgradeBtn.style.display = "none";
+    babyLockBtn.style.display = "block";
+  };
+
+  /* ---------- Baby Lock ---------- */
+  let lockActive = false;
+  babyLockBtn.onclick=()=>{
+    if(!lockActive){
+      lockActive = true;
+      babyLockBtn.textContent = "Disable Baby Lock";
+      lockIcon.style.display = "block";
+      if (document.body.requestFullscreen) {
+        document.body.requestFullscreen(); // mimic fullscreen lock for web
+      }
+      if (typeof Android !== "undefined" && Android.startLockTask) {
+        Android.startLockTask(); // real Android pinned mode
+      }
+    } else {
+      disableBabyLock();
+    }
+  };
+
+  function disableBabyLock(){
+    lockActive = false;
+    babyLockBtn.textContent = "Enable Baby Lock";
+    lockIcon.style.display = "none";
+    if (document.exitFullscreen) document.exitFullscreen();
+    if (typeof Android !== "undefined" && Android.stopLockTask) {
+      Android.stopLockTask();
+    }
+  }
+
+  // Parent unlock gesture: hold both top corners
+  let cornerTouches = {};
+  let cornerTimer = null;
+
+  canvas.addEventListener("touchstart",(e)=>{
+    for(const t of e.touches){
+      if(t.clientY < 80){ // top 80px
+        if(t.clientX < 80) cornerTouches.left = true;
+        if(t.clientX > window.innerWidth-80) cornerTouches.right = true;
+      }
+    }
+    if(cornerTouches.left && cornerTouches.right && lockActive){
+      if(!cornerTimer){
+        cornerTimer = setTimeout(()=>{ disableBabyLock(); },3000);
+      }
+    }
+  });
+  canvas.addEventListener("touchend",()=>{
+    cornerTouches={}; clearTimeout(cornerTimer); cornerTimer=null;
+  });
 
   /* ---------- Audio ---------- */
   let audioCtx = null, masterGain = null, soundEnabled = true;
@@ -126,10 +202,10 @@
 
     if(currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 120){
       if(spinSpeed > 0){
-        playNote(SCALE[wheelIndex], 0.28); // forward
+        playNote(SCALE[wheelIndex], 0.28);
         wheelIndex = (wheelIndex + 1) % SCALE.length;
       } else {
-        wheelIndex = (wheelIndex - 1 + SCALE.length) % SCALE.length; // backward
+        wheelIndex = (wheelIndex - 1 + SCALE.length) % SCALE.length;
         playNote(SCALE[wheelIndex], 0.28);
       }
       lastSlice = currentSlice;
@@ -215,11 +291,20 @@
     }
   }
 
-  /* ---------- UI ---------- */
+  /* ---------- Volume Unlock ---------- */
   muteBtn.onclick=()=>{
     soundEnabled=!soundEnabled;
     muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
   };
+  let holdTimeout;
+  muteBtn.addEventListener("mousedown",()=>{ 
+    holdTimeout=setTimeout(()=>{ 
+      volumeSlider.style.display = (volumeSlider.style.display==="none"?"block":"none");
+    },3000);
+  });
+  muteBtn.addEventListener("mouseup",()=>clearTimeout(holdTimeout));
+  muteBtn.addEventListener("mouseleave",()=>clearTimeout(holdTimeout));
+
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
