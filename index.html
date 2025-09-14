@@ -9,17 +9,19 @@
     body { margin:0; background:#0a0011; overflow:hidden; font-family: system-ui, sans-serif; }
     canvas { display:block; touch-action:none; }
 
+    #controls {
+      position:absolute; right:12px; bottom:14px; z-index:10;
+      display:flex; flex-direction:column; align-items:flex-end; gap:10px;
+    }
     #muteBtn {
-      position:absolute; top:12px; right:12px; z-index:10;
       padding:10px 16px; border:0; border-radius:20px; 
       background:#222; color:#fff;
       box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
     }
     #volumeSlider {
-      position:absolute; top:56px; right:12px; width:160px; z-index:10;
+      width:160px;
     }
     #upgradeBtn {
-      position:absolute; right:12px; bottom:14px; z-index:10;
       padding:12px 18px; border:0; border-radius:28px;
       background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
       box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
@@ -27,9 +29,11 @@
   </style>
 </head>
 <body>
-  <button id="muteBtn">🔊 Sound On</button>
-  <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
-  <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+  <div id="controls">
+    <button id="muteBtn">🔊 Sound On</button>
+    <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
+    <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+  </div>
   <canvas id="wheelCanvas"></canvas>
 
   <script>
@@ -59,7 +63,7 @@
     ensureAudio();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.type = "sine"; // same tone both directions
+    osc.type = "sine";
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
     gain.gain.setValueAtTime(0.22, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
@@ -178,7 +182,7 @@
     const r = 40 + Math.random()*20;
     const x = Math.random() * (canvas.width - r*2) + r;
     const y = -r - Math.random()*canvas.height*0.3;
-    return { x,y,r, speed:0.5+Math.random()*0.6, hue:Math.random()*360, popped:false }; // slower
+    return { x,y,r, speed:0.5+Math.random()*0.6, hue:Math.random()*360, popped:false };
   }
   function popBubbleAt(x,y){
     for(let i=0;i<bubbles.length;i++){
