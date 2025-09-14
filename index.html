@@ -30,8 +30,17 @@
       color:#fff; opacity:0.6; display:none; pointer-events:none;
     }
     #volumeSlider {
-      position:absolute; top:40px; left:10px; width:160px;
+      position:absolute; top:55px; left:10px; width:160px;
       display:none;
+    }
+    #muteToggle {
+      position:absolute; top:10px; left:10px;
+      font-size:18px; display:none;
+      background:#222; color:#fff;
+      border:0; border-radius:50%;
+      width:40px; height:40px;
+      box-shadow:0 2px 6px rgba(0,0,0,.35);
+      cursor:pointer;
     }
   </style>
 </head>
@@ -44,6 +53,7 @@
     Hold both top corners 3s to exit Baby Lock
   </div>
   <div id="lockIcon">🔒</div>
+  <button id="muteToggle">🔊</button>
   <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
   <canvas id="wheelCanvas"></canvas>
 
@@ -51,6 +61,7 @@
   const canvas = document.getElementById("wheelCanvas");
   const ctx = canvas.getContext("2d");
   const volumeSlider = document.getElementById("volumeSlider");
+  const muteToggle = document.getElementById("muteToggle");
   const upgradeBtn = document.getElementById("upgradeBtn");
   const lockIcon = document.getElementById("lockIcon");
 
@@ -81,10 +92,10 @@
     }
   }
 
-  // Parent unlock gesture: hold both top corners
+  // Parent unlock gesture: hold both top corners OR just top-left
   let cornerTouches = {};
   let cornerTimer = null;
-  canvas.addEventListener("touchstart",(e)=>{
+  document.body.addEventListener("touchstart",(e)=>{
     for(const t of e.touches){
       if(t.clientY < 80){
         if(t.clientX < 80) cornerTouches.left = true;
@@ -97,20 +108,14 @@
         cornerTimer = setTimeout(()=>{ disableBabyLock(); },3000);
       }
     }
-    // Only top-left corner = show volume slider
+    // Only top-left = show volume controls
     if(cornerTouches.left && !cornerTouches.right){
       if(!cornerTimer){
-        cornerTimer = setTimeout(()=>{ 
-          volumeSlider.style.display = (volumeSlider.style.display==="none" ? "block" : "none");
-          // auto-hide after 5s
-          if(volumeSlider.style.display==="block"){
-            setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
-          }
-        },3000);
+        cornerTimer = setTimeout(()=>{ showVolumeControls(); },3000);
       }
     }
   });
-  canvas.addEventListener("touchend",()=>{
+  document.body.addEventListener("touchend",()=>{
     cornerTouches={}; clearTimeout(cornerTimer); cornerTimer=null;
   });
 
@@ -286,10 +291,31 @@
     }
   }
 
-  /* ---------- Volume from top-left corner ---------- */
+  /* ---------- Volume Controls ---------- */
+  let hideTimeout;
+  function showVolumeControls(){
+    volumeSlider.style.display="block";
+    muteToggle.style.display="block";
+    clearTimeout(hideTimeout);
+    hideTimeout=setTimeout(hideVolumeControls,5000);
+  }
+  function hideVolumeControls(){
+    volumeSlider.style.display="none";
+    muteToggle.style.display="none";
+  }
+
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
+    clearTimeout(hideTimeout);
+    hideTimeout=setTimeout(hideVolumeControls,5000);
+  };
+
+  muteToggle.onclick=()=>{
+    soundEnabled=!soundEnabled;
+    muteToggle.textContent = soundEnabled ? "🔊" : "🔇";
+    clearTimeout(hideTimeout);
+    hideTimeout=setTimeout(hideVolumeControls,5000);
   };
 
   /* ---------- Loop ---------- */
