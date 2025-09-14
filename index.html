@@ -9,18 +9,19 @@
     body { margin:0; background:#0a0011; overflow:hidden; font-family: system-ui, sans-serif; }
     canvas { display:block; touch-action:none; }
 
-    /* Upgrade button area */
+    /* Controls area */
     #controls {
       position:absolute; bottom:50px; left:50%; transform:translateX(-50%);
       z-index:10; display:flex; justify-content:center;
     }
-    #upgradeBtn {
+    #upgradeBtn, #babyLockBtn {
       padding:14px 22px; border:0; border-radius:28px;
       background:linear-gradient(90deg,#6a5acd,#ff69b4); 
       color:#fff; font-weight:600; font-size:15px;
       box-shadow:0 6px 18px rgba(0,0,0,.35);
       text-align:center; white-space:nowrap;
     }
+    #babyLockBtn { display:none; }
 
     /* Instructions */
     #instructions {
@@ -35,7 +36,7 @@
       font-size:22px; color:#fff; opacity:0.7; display:none; pointer-events:none;
     }
 
-    /* Volume controls (hidden until parent opens) */
+    /* Volume controls */
     #volumePanel {
       position:absolute; top:10px; left:10px; z-index:20;
       display:none; flex-direction:row; align-items:center; gap:10px;
@@ -61,16 +62,17 @@
   </style>
 </head>
 <body>
-  <!-- Volume Controls (hidden by default) -->
+  <!-- Volume Controls -->
   <div id="volumePanel">
     <button id="volumeBtn">🔊</button>
     <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
     <button id="closeVolume">✕</button>
   </div>
 
-  <!-- Upgrade -->
+  <!-- Controls -->
   <div id="controls">
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+    <button id="babyLockBtn">Enable Baby Lock</button>
   </div>
 
   <!-- Instructions -->
@@ -87,6 +89,7 @@
   <script>
   const canvas=document.getElementById("wheelCanvas"),ctx=canvas.getContext("2d");
   const upgradeBtn=document.getElementById("upgradeBtn");
+  const babyLockBtn=document.getElementById("babyLockBtn");
   const lockIcon=document.getElementById("lockIcon");
   const volumePanel=document.getElementById("volumePanel");
   const volumeSlider=document.getElementById("volumeSlider");
@@ -108,7 +111,12 @@
     alert("You're now ad-free, and Baby Lock is available!");
     upgraded=true;
     upgradeBtn.style.display="none";
+    babyLockBtn.style.display="block"; // show Baby Lock button
+  };
+
+  babyLockBtn.onclick=()=>{
     enableBabyLock();
+    babyLockBtn.style.display="none"; // hide button once enabled
   };
 
   function enableBabyLock(){
@@ -120,6 +128,7 @@
     lockActive=false;
     lockIcon.style.display="none";
     showToast("Baby Lock Disabled");
+    babyLockBtn.style.display="block"; // allow re-enabling
   }
 
   /* ---- Unlock gesture ---- */
@@ -137,7 +146,18 @@
   });
   canvas.addEventListener("touchend",()=>{touches={};clearTimeout(timer);timer=null;});
 
-  /* ---- Volume (open with top-left hold) ---- */
+  /* ---- Volume ---- */
+  let audioCtx=null, masterGain=null, volume=parseFloat(volumeSlider.value);
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      masterGain=audioCtx.createGain();
+      masterGain.gain.value=volume;
+      masterGain.connect(audioCtx.destination);
+    }
+  }
+  closeVolume.onclick=()=>{volumePanel.style.display="none";};
+
   let volTimer=null;
   canvas.addEventListener("touchstart",e=>{
     for(const t of e.touches){
@@ -150,18 +170,6 @@
   });
   canvas.addEventListener("touchend",()=>{clearTimeout(volTimer);volTimer=null;});
 
-  closeVolume.onclick=()=>{volumePanel.style.display="none";};
-
-  /* ---- Audio ---- */
-  let audioCtx=null, masterGain=null, volume=parseFloat(volumeSlider.value);
-  function ensureAudio(){
-    if(!audioCtx){
-      audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-      masterGain=audioCtx.createGain();
-      masterGain.gain.value=volume;
-      masterGain.connect(audioCtx.destination);
-    }
-  }
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
