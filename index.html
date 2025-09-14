@@ -4,218 +4,266 @@
   <meta charset="UTF-8">
   <title>Spin Sensory Wheel</title>
   <style>
-    body { margin:0; background:#0a0011; overflow:hidden; }
-    canvas { display:block; touch-action:none; }
-    #muteBtn, #upgradeBtn, #babyLockBtn {
-      position:absolute; right:15px; padding:8px 16px;
-      border:none; border-radius:20px; background:#222; color:#fff;
-      box-shadow:0 0 6px rgba(0,0,0,0.3); font-size:14px; cursor:pointer;
-      z-index:10;
+    body {
+      margin: 0;
+      background: #0a0011;
+      overflow: hidden;
+      font-family: sans-serif;
     }
-    #muteBtn { top:15px; }
-    #upgradeBtn { bottom:60px; }
-    #babyLockBtn { bottom:15px; }
+    canvas {
+      display: block;
+      touch-action: none;
+    }
+    #muteBtn, #upgradeBtn, #babyLockBtn {
+      position: absolute;
+      right: 15px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      background: #222;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #muteBtn { top: 15px; }
+    #upgradeBtn { bottom: 60px; }
+    #babyLockBtn { bottom: 100px; display: none; } /* hidden until upgrade */
+    #volumeSlider {
+      position: absolute;
+      top: 55px;
+      right: 15px;
+      width: 120px;
+      z-index: 10;
+      display: none;
+    }
     #instructions {
       position: absolute;
-      bottom: 5px;
+      bottom: 8px;
       left: 50%;
       transform: translateX(-50%);
-      text-align: center;
+      color: #aaa;
       font-size: 12px;
-      color: rgba(255,255,255,0.9);
-      background: rgba(0,0,0,0.4);
-      padding: 4px 8px;
-      border-radius: 6px;
-      pointer-events: none;
-      z-index: 5;
-      white-space: nowrap;
+      text-align: center;
+      z-index: 10;
     }
-    @media (max-width: 480px) {
-      #instructions {
-        font-size: 10px;
-        padding: 3px 6px;
-      }
-    }
-    #upgradeMessage {
-      display: none;
+    #toast {
       position: absolute;
-      top: 20%;
+      bottom: 120px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.85);
       color: #fff;
-      padding: 12px 18px;
-      border-radius: 10px;
-      font-size: 16px;
-      text-align: center;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
       z-index: 20;
     }
   </style>
 </head>
 <body>
   <button id="muteBtn">🔊 Sound On</button>
+  <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
   <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
-  <button id="babyLockBtn" style="display:none;">Enable Baby Lock</button>
-  <div id="instructions">
-    Hold mute 3s for volume settings · Hold both top corners 3s to exit Baby Lock
-  </div>
-  <div id="upgradeMessage">🎉 You're now ad-free, and Baby Lock is available!</div>
+  <button id="babyLockBtn">Enable Baby Lock</button>
+  <div id="instructions">Hold mute 3s for volume settings · Hold both Back + Overview buttons to exit Baby Lock</div>
+  <div id="toast">You’re now ad free, and Baby Lock is available!</div>
   <canvas id="wheelCanvas"></canvas>
 
-  <script type="module">
-    import { showBanner, hideBanner } from "./ads.js";
-    import { initIAP, buyUnlock, checkUnlock, enableBabyLock } from "./iap.js";
+  <script>
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+    const muteBtn = document.getElementById("muteBtn");
+    const volumeSlider = document.getElementById("volumeSlider");
+    const upgradeBtn = document.getElementById("upgradeBtn");
+    const babyLockBtn = document.getElementById("babyLockBtn");
+    const toast = document.getElementById("toast");
 
-    const canvas=document.getElementById("wheelCanvas"),
-          ctx=canvas.getContext("2d");
-    const muteBtn=document.getElementById("muteBtn");
-    const upgradeBtn=document.getElementById("upgradeBtn");
-    const babyLockBtn=document.getElementById("babyLockBtn");
-    const upgradeMessage=document.getElementById("upgradeMessage");
+    let radius = 100;
+    let audioCtx = null, masterGain = null, soundEnabled = true, volume = 0.5;
+    let angle = 0, spinSpeed = 0, friction = 0.985;
+    let isDragging = false, lastAngle = 0, lastTime = 0;
+    let glowPulseTime = 0, lastSlice = null, lastSoundTime = 0;
 
-    let radius=100,audioCtx=null,masterGain=null,soundEnabled=true,volume=0.5;
-    let angle=0,spinSpeed=0,friction=0.985,isDragging=false,lastAngle=0,lastTime=0;
-    let lastSlice=null,lastSoundTime=0,glowPulseTime=0;
+    // Notes for do-re-mi scale
+    const notes = [261.63,293.66,329.63,349.23,392.0,440.0,493.88,523.25];
 
-    const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
-    const notes=[261.63,293.66,329.63,349.23,392.0,440.0,493.88,523.25];
-    let bubbleNotesIndex=0;
-
-    // --- Bubble system ---
-    let bubbles=[];
-    function spawnBubble(){
-      const r=25+Math.random()*25;
-      bubbles.push({x:Math.random()*(canvas.width-r*2)+r,y:-r,r,speed:1+Math.random()*1.5,popped:false});
+    // Bubble system
+    let bubbles = [];
+    function createBubble() {
+      bubbles.push({
+        x: Math.random() * canvas.width,
+        y: -50,
+        r: 35 + Math.random() * 15,
+        speed: 0.7 + Math.random() * 0.6,
+        popped: false
+      });
     }
-    setInterval(spawnBubble,1000);
+    setInterval(() => {
+      if (bubbles.length < 20) createBubble();
+    }, 800);
 
-    function drawBubbles(){
-      bubbles.forEach((b,i)=>{
-        if(!b.popped){
+    function drawBubbles() {
+      bubbles.forEach((b, i) => {
+        if (!b.popped) {
           ctx.beginPath();
-          ctx.arc(b.x,b.y,b.r,0,2*Math.PI);
-          const gradient=ctx.createRadialGradient(b.x-b.r/3,b.y-b.r/3,b.r*0.2,b.x,b.y,b.r);
-          gradient.addColorStop(0,"rgba(255,255,255,0.8)");
-          gradient.addColorStop(0.5,"rgba(173,216,230,0.3)");
-          gradient.addColorStop(1,"rgba(255,255,255,0.05)");
-          ctx.fillStyle=gradient;
+          ctx.arc(b.x, b.y, b.r, 0, 2 * Math.PI);
+          let grad = ctx.createRadialGradient(b.x, b.y, b.r*0.2, b.x, b.y, b.r);
+          grad.addColorStop(0, "rgba(255,255,255,0.7)");
+          grad.addColorStop(0.5, "rgba(173,216,230,0.3)");
+          grad.addColorStop(1, "rgba(255,255,255,0.1)");
+          ctx.fillStyle = grad;
           ctx.fill();
-          b.y+=b.speed;
-          if(b.y-b.r>canvas.height){ bubbles.splice(i,1); }
+          b.y += b.speed;
+          if (b.y - b.r > canvas.height) bubbles.splice(i,1);
         }
       });
     }
 
-    canvas.addEventListener("click",e=>{
-      const rect=canvas.getBoundingClientRect();
-      const x=e.clientX-rect.left,y=e.clientY-rect.top;
-      bubbles.forEach(b=>{
-        if(!b.popped){
-          const dist=Math.hypot(b.x-x,b.y-y);
-          if(dist<b.r){ b.popped=true; playBubbleNote(); }
+    canvas.addEventListener("click", e => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      bubbles.forEach(b => {
+        if (!b.popped) {
+          const dist = Math.hypot(b.x - x, b.y - y);
+          if (dist < b.r) {
+            b.popped = true;
+            playBubbleNote();
+          }
         }
       });
     });
 
-    function playBubbleNote(){
-      if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        masterGain=audioCtx.createGain(); masterGain.gain.value=volume;
+    let bubbleNoteIndex = 0;
+    function playBubbleNote() {
+      if (!soundEnabled) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volume;
         masterGain.connect(audioCtx.destination);
       }
-      const freq=notes[bubbleNotesIndex%notes.length];
-      bubbleNotesIndex=(bubbleNotesIndex+1)%notes.length;
-      const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-      osc.type="sine"; osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.3,audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.25);
-      osc.connect(gain); gain.connect(masterGain);
-      osc.start(); osc.stop(audioCtx.currentTime+0.25);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(notes[bubbleNoteIndex], audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+      bubbleNoteIndex = (bubbleNoteIndex + 1) % notes.length;
     }
 
-    // --- Wheel functions ---
+    // Resize
     function resizeCanvas(){
-      canvas.width=window.innerWidth; canvas.height=window.innerHeight;
-      radius=Math.min(canvas.width,canvas.height)*0.45;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      radius = Math.min(canvas.width, canvas.height) * 0.45;
     }
-    window.addEventListener("resize",resizeCanvas);
+    window.addEventListener("resize", resizeCanvas);
 
-    function getPointerAngle(x,y){
-      const r=canvas.getBoundingClientRect(),
-            cx=r.left+canvas.width/2,cy=r.top+canvas.height/2;
-      return Math.atan2(y-cy,x-cx);
-    }
-
+    // Wheel
     function drawWheel(){
-      ctx.save(); ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(angle);
-      glowPulseTime+=0.02; const pulse=50+Math.sin(glowPulseTime)*10;
-      ctx.beginPath(); ctx.arc(0,0,radius+12,0,2*Math.PI);
-      ctx.strokeStyle="white"; ctx.lineWidth=4;
-      ctx.shadowColor="white"; ctx.shadowBlur=pulse*1.5; ctx.stroke();
-      for(let i=0;i<colors.length;i++){
-        ctx.beginPath(); ctx.moveTo(0,0);
+      ctx.save();
+      ctx.translate(canvas.width/2, canvas.height/2);
+      ctx.rotate(angle);
+
+      glowPulseTime += 0.02;
+      const pulse = 50 + Math.sin(glowPulseTime) * 10;
+
+      const colors = ["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
+      for (let i=0;i<colors.length;i++) {
+        ctx.beginPath();
+        ctx.moveTo(0,0);
         ctx.arc(0,0,radius,(i*2*Math.PI)/colors.length,((i+1)*2*Math.PI)/colors.length);
-        ctx.closePath(); ctx.fillStyle=colors[i];
-        ctx.shadowColor=colors[i]; ctx.shadowBlur=pulse; ctx.fill();
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.shadowColor = colors[i];
+        ctx.shadowBlur = pulse;
+        ctx.fill();
       }
       ctx.restore();
     }
 
     function animate(){
-      if(!isDragging){ angle+=spinSpeed; spinSpeed*=friction; }
-      const normalized=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
-      const currentSlice=Math.floor((normalized/(2*Math.PI))*colors.length);
-      const now=performance.now();
-      if(currentSlice!==lastSlice && Math.abs(spinSpeed)>0.05 && now-lastSoundTime>100){
-        playWheelNote(currentSlice,spinSpeed>0); lastSlice=currentSlice; lastSoundTime=now;
+      if (!isDragging) {
+        angle += spinSpeed;
+        spinSpeed *= friction;
       }
+      const normalized = ((angle % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+      const currentSlice = Math.floor((normalized / (2*Math.PI)) * 7);
+      const now = performance.now();
+      if (currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 100) {
+        const idx = spinSpeed > 0 ? currentSlice : (7-currentSlice);
+        playTone(notes[idx],0.25);
+        lastSlice = currentSlice;
+        lastSoundTime = now;
+      }
+
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBubbles(); drawWheel();
+      drawBubbles();
+      drawWheel();
       requestAnimationFrame(animate);
     }
 
-    function playWheelNote(index,clockwise){
-      if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        masterGain=audioCtx.createGain(); masterGain.gain.value=volume;
+    function playTone(freq,duration){
+      if (!soundEnabled) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volume;
         masterGain.connect(audioCtx.destination);
       }
-      const freq=notes[clockwise?index:(notes.length-1-index)];
-      const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-      osc.type="sine"; osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.25,audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);
-      osc.connect(gain); gain.connect(masterGain);
-      osc.start(); osc.stop(audioCtx.currentTime+0.3);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
     }
 
+    function getPointerAngle(x,y){
+      const r=canvas.getBoundingClientRect();
+      const cx=r.left+canvas.width/2, cy=r.top+canvas.height/2;
+      return Math.atan2(y-cy,x-cx);
+    }
     function pointerDown(e){
       isDragging=true;
-      lastAngle=getPointerAngle(e.clientX||e.touches[0].clientX,e.clientY||e.touches[0].clientY);
-      lastTime=Date.now(); spinSpeed=0;
+      lastAngle=getPointerAngle(e.clientX||e.touches[0].clientX, e.clientY||e.touches[0].clientY);
+      lastTime=Date.now();
+      spinSpeed=0;
     }
     function pointerMove(e){
       if(!isDragging) return;
-      const a=getPointerAngle(e.clientX||e.touches[0].clientX,e.clientY||e.touches[0].clientY);
-      const now=Date.now(),delta=a-lastAngle;
-      angle+=delta; spinSpeed=delta/((now-lastTime)/1000);
+      const a=getPointerAngle(e.clientX||e.touches[0].clientX, e.clientY||e.touches[0].clientY);
+      const now=Date.now();
+      const delta=a-lastAngle;
+      angle+=delta;
+      spinSpeed=delta/((now-lastTime)/1000);
       lastAngle=a; lastTime=now;
     }
     function pointerUp(){ isDragging=false; }
 
-    muteBtn.onmousedown=()=>{
-      const hold=setTimeout(()=>{
-        let slider=document.getElementById("volumeSlider");
-        if(!slider){
-          slider=document.createElement("input");
-          slider.type="range"; slider.min=0; slider.max=1; slider.step=0.01;
-          slider.value=volume; slider.id="volumeSlider";
-          slider.style.position="absolute"; slider.style.bottom="100px"; slider.style.right="15px";
-          slider.oninput=e=>{ volume=parseFloat(e.target.value); if(masterGain){ masterGain.gain.value=volume; } };
-          document.body.appendChild(slider);
-        }
-      },3000);
-      muteBtn.onmouseup=()=>clearTimeout(hold);
+    muteBtn.onclick=()=>{
       soundEnabled=!soundEnabled;
       muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
+    };
+    let muteHoldTimer=null;
+    muteBtn.addEventListener("mousedown",()=>{
+      muteHoldTimer=setTimeout(()=>{volumeSlider.style.display="block";},3000);
+    });
+    muteBtn.addEventListener("mouseup",()=>clearTimeout(muteHoldTimer));
+
+    volumeSlider.oninput=e=>{
+      volume=parseFloat(e.target.value);
+      if(masterGain){ masterGain.gain.value=volume; }
     };
 
     canvas.addEventListener("mousedown",pointerDown);
@@ -225,26 +273,22 @@
     canvas.addEventListener("touchmove",pointerMove);
     canvas.addEventListener("touchend",pointerUp);
 
-    // ---- APP MODE LOGIC ----
-    window.onload = async () => {
-      resizeCanvas(); animate(); await initIAP();
-      const unlocked=await checkUnlock();
-      if(!unlocked){
-        showBanner();
-        upgradeBtn.onclick=async()=>{
-          await buyUnlock();
-          upgradeBtn.style.display="none";
-          babyLockBtn.style.display="block";
-          babyLockBtn.onclick=enableBabyLock;
-          upgradeMessage.style.display="block";
-          setTimeout(()=>{ upgradeMessage.style.display="none"; },4000);
-        };
-      } else {
-        upgradeBtn.style.display="none";
-        babyLockBtn.style.display="block";
-        babyLockBtn.onclick=enableBabyLock;
-      }
+    // Upgrade button → enable Baby Lock + show toast
+    upgradeBtn.onclick=()=>{
+      upgradeBtn.style.display="none";
+      babyLockBtn.style.display="block"; // show only after upgrade
+      showToast("You’re now ad free, and Baby Lock is available!");
     };
+
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.style.display="block";
+      setTimeout(()=>{ toast.style.display="none"; }, 4000);
+    }
+
+    // Init
+    resizeCanvas();
+    animate();
   </script>
 </body>
 </html>
