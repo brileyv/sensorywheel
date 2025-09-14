@@ -30,15 +30,24 @@
       color:#fff; opacity:0.6; display:none; pointer-events:none;
     }
     #volumeSlider {
-      position:absolute; top:55px; left:10px; width:160px;
+      position:absolute; top:95px; left:10px; width:160px;
       display:none;
     }
     #muteToggle {
-      position:absolute; top:10px; left:10px;
+      position:absolute; top:50px; left:10px;
       font-size:18px; display:none;
       background:#222; color:#fff;
       border:0; border-radius:50%;
       width:40px; height:40px;
+      box-shadow:0 2px 6px rgba(0,0,0,.35);
+      cursor:pointer;
+    }
+    #closeVolume {
+      position:absolute; top:10px; left:60px;
+      font-size:16px; display:none;
+      background:#c00; color:#fff;
+      border:0; border-radius:50%;
+      width:30px; height:30px;
       box-shadow:0 2px 6px rgba(0,0,0,.35);
       cursor:pointer;
     }
@@ -54,6 +63,7 @@
   </div>
   <div id="lockIcon">🔒</div>
   <button id="muteToggle">🔊</button>
+  <button id="closeVolume">❌</button>
   <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
   <canvas id="wheelCanvas"></canvas>
 
@@ -62,6 +72,7 @@
   const ctx = canvas.getContext("2d");
   const volumeSlider = document.getElementById("volumeSlider");
   const muteToggle = document.getElementById("muteToggle");
+  const closeVolume = document.getElementById("closeVolume");
   const upgradeBtn = document.getElementById("upgradeBtn");
   const lockIcon = document.getElementById("lockIcon");
 
@@ -296,12 +307,14 @@
   function showVolumeControls(){
     volumeSlider.style.display="block";
     muteToggle.style.display="block";
+    closeVolume.style.display="block";
     clearTimeout(hideTimeout);
     hideTimeout=setTimeout(hideVolumeControls,5000);
   }
   function hideVolumeControls(){
     volumeSlider.style.display="none";
     muteToggle.style.display="none";
+    closeVolume.style.display="none";
   }
 
   volumeSlider.oninput=e=>{
@@ -316,6 +329,10 @@
     muteToggle.textContent = soundEnabled ? "🔊" : "🔇";
     clearTimeout(hideTimeout);
     hideTimeout=setTimeout(hideVolumeControls,5000);
+  };
+
+  closeVolume.onclick=()=>{
+    hideVolumeControls();
   };
 
   /* ---------- Loop ---------- */
