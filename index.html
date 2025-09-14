@@ -131,8 +131,8 @@
     babyLockBtn.style.display="block"; // show button again
   }
 
-  /* ---- Unlock gesture ---- */
-  let touches={}, timer=null;
+  /* ---- Unlock + Volume gesture ---- */
+  let touches={}, timer=null, volTimer=null;
   canvas.addEventListener("touchstart",e=>{
     for(const t of e.touches){
       if(t.clientY<80){
@@ -140,13 +140,29 @@
         if(t.clientX>window.innerWidth-80) touches.right=true;
       }
     }
+    // Both corners = disable Baby Lock
     if(touches.left && touches.right && lockActive && !timer){
+      clearTimeout(volTimer); // prevent volume from opening
+      volTimer=null;
       timer=setTimeout(()=>disableBabyLock(),3000);
     }
+    // Only left corner = volume
+    else if(touches.left && !touches.right){
+      if(!volTimer){
+        volTimer=setTimeout(()=>{volumePanel.style.display="flex";},3000);
+      }
+    }
   });
-  canvas.addEventListener("touchend",()=>{touches={};clearTimeout(timer);timer=null;});
 
-  /* ---- Volume ---- */
+  canvas.addEventListener("touchend",()=>{
+    touches={};
+    clearTimeout(timer); timer=null;
+    clearTimeout(volTimer); volTimer=null;
+  });
+
+  closeVolume.onclick=()=>{volumePanel.style.display="none";};
+
+  /* ---- Volume Audio ---- */
   let audioCtx=null, masterGain=null, volume=parseFloat(volumeSlider.value);
   function ensureAudio(){
     if(!audioCtx){
@@ -156,20 +172,6 @@
       masterGain.connect(audioCtx.destination);
     }
   }
-  closeVolume.onclick=()=>{volumePanel.style.display="none";};
-
-  let volTimer=null;
-  canvas.addEventListener("touchstart",e=>{
-    for(const t of e.touches){
-      if(t.clientY<80 && t.clientX<80){
-        if(!volTimer){
-          volTimer=setTimeout(()=>{volumePanel.style.display="flex";},3000);
-        }
-      }
-    }
-  });
-  canvas.addEventListener("touchend",()=>{clearTimeout(volTimer);volTimer=null;});
-
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
