@@ -105,30 +105,30 @@
     toastTimer=setTimeout(()=>toast.classList.remove("show"),1500);
   }
 
-  /* ---- Upgrade ---- */
+  /* ---- Upgrade & Baby Lock ---- */
   let upgraded=false, lockActive=false;
+
   upgradeBtn.onclick=()=>{
     alert("You're now ad-free, and Baby Lock is available!");
     upgraded=true;
     upgradeBtn.style.display="none";
-    babyLockBtn.style.display="block"; // show Baby Lock button
+    babyLockBtn.style.display="block"; // show Enable Baby Lock button
   };
 
   babyLockBtn.onclick=()=>{
-    enableBabyLock();
-    babyLockBtn.style.display="none"; // hide button once enabled
+    if (!lockActive) {
+      lockActive=true;
+      lockIcon.style.display="block";
+      showToast("Baby Lock Enabled");
+      babyLockBtn.style.display="none"; // hide while active
+    }
   };
 
-  function enableBabyLock(){
-    lockActive=true;
-    lockIcon.style.display="block";
-    showToast("Baby Lock Enabled");
-  }
   function disableBabyLock(){
     lockActive=false;
     lockIcon.style.display="none";
     showToast("Baby Lock Disabled");
-    babyLockBtn.style.display="block"; // allow re-enabling
+    babyLockBtn.style.display="block"; // show button again
   }
 
   /* ---- Unlock gesture ---- */
