@@ -10,7 +10,7 @@
     canvas { display:block; touch-action:none; }
 
     #controls {
-      position:absolute; right:12px; bottom:50px;
+      position:absolute; right:12px; bottom:60px;
       z-index:10;
       display:flex; flex-direction:column; align-items:flex-end; gap:10px;
     }
@@ -26,8 +26,9 @@
       box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
     }
     #instructions {
-      position:absolute; bottom:6px; left:0; right:0;
-      text-align:center; font-size:12px; color:rgba(255,255,255,0.5);
+      position:absolute; bottom:8px; left:0; right:0;
+      text-align:center; font-size:12px; color:rgba(255,255,255,0.6);
+      line-height:1.4;
       pointer-events:none;
     }
     #lockIcon {
@@ -43,7 +44,8 @@
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
   </div>
   <div id="instructions">
-    Hold Volume 3s for settings · Hold both top corners 3s to exit Baby Lock
+    Hold Volume 3s for settings<br/>
+    Hold both top corners 3s to exit Baby Lock
   </div>
   <div id="lockIcon">🔒</div>
   <canvas id="wheelCanvas"></canvas>
@@ -277,11 +279,10 @@
 
   /* ---------- Volume Unlock ---------- */
   let holdTimeout, hideTimeout;
-  volumeBtn.addEventListener("mousedown",()=>{ 
+  function startHold(){
     holdTimeout=setTimeout(()=>{ 
       if(volumeSlider.style.display==="none"){
         volumeSlider.style.display="block";
-        // auto-hide after 5s
         clearTimeout(hideTimeout);
         hideTimeout=setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
       } else {
@@ -289,9 +290,16 @@
         soundEnabled=!soundEnabled;
       }
     },3000);
-  });
-  volumeBtn.addEventListener("mouseup",()=>clearTimeout(holdTimeout));
-  volumeBtn.addEventListener("mouseleave",()=>clearTimeout(holdTimeout));
+  }
+  function cancelHold(){ clearTimeout(holdTimeout); }
+
+  volumeBtn.addEventListener("mousedown", startHold);
+  volumeBtn.addEventListener("mouseup", cancelHold);
+  volumeBtn.addEventListener("mouseleave", cancelHold);
+
+  // Mobile support
+  volumeBtn.addEventListener("touchstart", startHold);
+  volumeBtn.addEventListener("touchend", cancelHold);
 
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
