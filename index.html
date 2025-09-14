@@ -9,42 +9,48 @@
     body { margin:0; background:#0a0011; overflow:hidden; font-family: system-ui, sans-serif; }
     canvas { display:block; touch-action:none; }
 
+    /* Upgrade button area */
     #controls {
-      position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
-      z-index:10; display:flex; flex-direction:column; align-items:center; gap:10px;
+      position:absolute; bottom:50px; left:50%; transform:translateX(-50%);
+      z-index:10; display:flex; flex-direction:column; align-items:center;
     }
     #upgradeBtn {
       padding:12px 18px; border:0; border-radius:28px;
       background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
       box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
     }
+
+    /* Instructions */
     #instructions {
       position:absolute; bottom:6px; left:0; right:0;
       text-align:center; font-size:12px; color:rgba(255,255,255,0.5);
       pointer-events:none; line-height:1.4;
     }
+
+    /* Lock Icon */
     #lockIcon {
-      position:absolute; top:10px; left:10px; font-size:22px;
-      color:#fff; opacity:0.7; display:none; pointer-events:none;
+      position:absolute; top:10px; left:50%; transform:translateX(-50%);
+      font-size:22px; color:#fff; opacity:0.7; display:none; pointer-events:none;
     }
+
+    /* Volume controls on top-left */
     #volumePanel {
       position:absolute; top:10px; left:10px; z-index:20;
-      display:none; flex-direction:row; align-items:center; gap:10px;
+      display:flex; flex-direction:row; align-items:center; gap:10px;
       background:rgba(0,0,0,0.6); padding:8px; border-radius:12px;
+    }
+    #volumeBtn {
+      background:none; border:none; font-size:22px; color:white; cursor:pointer;
     }
     #volumeSlider { width:140px; }
     #closeVolume {
       background:red; color:white; border:none; border-radius:50%;
       width:28px; height:28px; font-size:16px; cursor:pointer;
     }
-    #volumeBtn {
-      position:absolute; top:10px; right:10px; font-size:24px;
-      background:none; border:none; color:white; cursor:pointer;
-    }
 
     /* Toast */
     #toast {
-      position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
+      position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
       background:rgba(30,30,30,0.95); color:#fff; padding:8px 14px;
       border-radius:16px; font-size:13px;
       box-shadow:0 4px 12px rgba(0,0,0,0.3);
@@ -55,20 +61,25 @@
   </style>
 </head>
 <body>
-  <button id="volumeBtn">🔊</button>
+  <!-- Volume Controls -->
   <div id="volumePanel">
-    <span>🔊</span>
+    <button id="volumeBtn">🔊</button>
     <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
     <button id="closeVolume">✕</button>
   </div>
 
+  <!-- Upgrade -->
   <div id="controls">
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
   </div>
+
+  <!-- Instructions -->
   <div id="instructions">
-    Press top left corner 3s for volume settings<br>
+    Use the volume button (top left) to adjust sound<br>
     Hold both top corners 3s to exit Baby Lock
   </div>
+
+  <!-- Lock Icon + Toast -->
   <div id="lockIcon">🔒</div>
   <div id="toast"></div>
   <canvas id="wheelCanvas"></canvas>
@@ -97,7 +108,7 @@
   upgradeBtn.onclick=()=>{
     alert("You're now ad-free, and Baby Lock is available!");
     upgraded=true;
-    upgradeBtn.style.display="none";
+    upgradeBtn.style.display="none"; // hide after upgrade
     enableBabyLock();
   };
 
@@ -137,23 +148,12 @@
       masterGain.connect(audioCtx.destination);
     }
   }
+  volumeBtn.onclick=()=>{volumePanel.style.display="flex";};
+  closeVolume.onclick=()=>{volumePanel.style.display="none";};
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
   };
-  closeVolume.onclick=()=>{volumePanel.style.display="none";};
-
-  let volTimer=null;
-  canvas.addEventListener("touchstart",e=>{
-    for(const t of e.touches){
-      if(t.clientY<80 && t.clientX<80){
-        if(!volTimer){
-          volTimer=setTimeout(()=>{volumePanel.style.display="flex";},3000);
-        }
-      }
-    }
-  });
-  canvas.addEventListener("touchend",()=>{clearTimeout(volTimer);volTimer=null;});
 
   /* ---- Sound ---- */
   const SCALE=[261.63,293.66,329.63,349.23,392,440,493.88,523.25];
