@@ -52,6 +52,34 @@
       text-align: center;
     }
 
+    /* Volume button */
+    #volumeControls {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      z-index: 20;
+    }
+    #volumeBtn, #muteToggle {
+      background: rgba(0,0,0,0.7);
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      font-size: 20px;
+      color: white;
+      cursor: pointer;
+    }
+    #muteToggle, #volumeSlider {
+      display: none;
+    }
+    #volumeSlider {
+      width: 120px;
+    }
+
     /* Unlock Modal */
     #unlockModal {
       position: fixed;
@@ -86,10 +114,15 @@
 <body>
   <canvas id="gameCanvas"></canvas>
 
+  <div id="volumeControls">
+    <button id="volumeBtn">🔊</button>
+    <button id="muteToggle">🔇</button>
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
+  </div>
+
   <div id="controls">
-    <button id="soundToggle" class="btn">🔊 Sound On</button>
     <button id="upgradeBtn" class="btn upgrade">Upgrade for Baby Lock + No Ads · $5 for Life</button>
-    <div id="instructions">Hold mute 3s for volume settings · Hold both top corners 3s to exit Baby Lock</div>
+    <div id="instructions">Hold volume button 3s for settings · Hold both top corners 3s to exit Baby Lock</div>
   </div>
 
   <!-- Baby Lock exit modal -->
@@ -121,7 +154,6 @@
       dragging: false,
       lastAngle: 0
     };
-
     const colors = ["red", "orange", "yellow", "lime", "cyan", "blue", "violet"];
 
     function drawWheel() {
@@ -134,7 +166,6 @@
         ctx.fillStyle = colors[i];
         ctx.fill();
       }
-      // Glow
       ctx.beginPath();
       ctx.arc(wheel.x, wheel.y, wheel.radius, 0, 2 * Math.PI);
       ctx.lineWidth = 5;
@@ -154,14 +185,10 @@
         this.speed = speed;
         this.alive = true;
       }
-
       update() {
         this.y += this.speed;
-        if (this.y - this.radius > height) {
-          this.reset();
-        }
+        if (this.y - this.radius > height) this.reset();
       }
-
       reset() {
         this.x = Math.random() * width;
         this.y = -this.radius;
@@ -169,7 +196,6 @@
         this.speed = 1 + Math.random() * 1.5;
         this.alive = true;
       }
-
       draw() {
         const gradient = ctx.createRadialGradient(this.x - this.radius/3, this.y - this.radius/3, this.radius/5, this.x, this.y, this.radius);
         gradient.addColorStop(0, "rgba(255,255,255,0.9)");
@@ -181,24 +207,21 @@
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
       }
-
       pop(x, y) {
         const dx = x - this.x;
         const dy = y - this.y;
         return dx * dx + dy * dy <= this.radius * this.radius;
       }
     }
-
     const bubbles = Array.from({length: 15}, () =>
       new Bubble(Math.random() * width, Math.random() * height, 25 + Math.random()*25, 1 + Math.random()*1.5)
     );
 
     // -------- Sounds ----------
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let soundOn = true;
-    const scaleFreqs = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25]; // Do–Re–Mi–...–Do
+    let soundOn = true, volume = 0.5;
+    const scaleFreqs = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
     let noteIndex = 0;
-
     function playNote(forward = true) {
       if (!soundOn) return;
       const osc = audioCtx.createOscillator();
@@ -206,16 +229,12 @@
       osc.connect(gainNode).connect(audioCtx.destination);
       osc.type = "sine";
       osc.frequency.value = scaleFreqs[noteIndex];
-      gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.4);
-
-      if (forward) {
-        noteIndex = (noteIndex + 1) % scaleFreqs.length;
-      } else {
-        noteIndex = (noteIndex - 1 + scaleFreqs.length) % scaleFreqs.length;
-      }
+      if (forward) noteIndex = (noteIndex + 1) % scaleFreqs.length;
+      else noteIndex = (noteIndex - 1 + scaleFreqs.length) % scaleFreqs.length;
     }
 
     canvas.addEventListener("click", e => {
@@ -239,7 +258,6 @@
         wheel.lastAngle = Math.atan2(dy, dx);
       }
     });
-
     canvas.addEventListener("touchmove", e => {
       if (wheel.dragging) {
         const t = e.touches[0];
@@ -253,17 +271,28 @@
         playNote(delta > 0);
       }
     });
+    canvas.addEventListener("touchend", () => { wheel.dragging = false; });
 
-    canvas.addEventListener("touchend", () => {
-      wheel.dragging = false;
+    // -------- Volume controls --------
+    const volumeBtn = document.getElementById("volumeBtn");
+    const muteToggle = document.getElementById("muteToggle");
+    const volumeSlider = document.getElementById("volumeSlider");
+    let holdTimer;
+    volumeBtn.addEventListener("mousedown", () => {
+      holdTimer = setTimeout(() => {
+        muteToggle.style.display = "block";
+        volumeSlider.style.display = "block";
+      }, 3000);
     });
-
-    // -------- Controls --------
-    document.getElementById("soundToggle").onclick = () => {
+    volumeBtn.addEventListener("mouseup", () => clearTimeout(holdTimer));
+    volumeBtn.addEventListener("mouseleave", () => clearTimeout(holdTimer));
+    muteToggle.onclick = () => {
       soundOn = !soundOn;
-      document.getElementById("soundToggle").innerText = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+      muteToggle.textContent = soundOn ? "🔊" : "🔇";
     };
+    volumeSlider.oninput = e => { volume = parseFloat(e.target.value); };
 
+    // -------- Upgrade --------
     let upgraded = false;
     document.getElementById("upgradeBtn").onclick = () => {
       upgraded = true;
@@ -275,57 +304,37 @@
     let cornerTouchStart = null;
     const unlockModal = document.getElementById("unlockModal");
     const confirmExit = document.getElementById("confirmExit");
-
     canvas.addEventListener("touchstart", e => {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+      const t1 = e.touches[0], t2 = e.touches[1];
       if (e.touches.length === 2) {
         if (t1.clientY < 100 && t2.clientY < 100 && t1.clientX < 100 && t2.clientX > width-100) {
           cornerTouchStart = Date.now();
         }
       }
     });
-
     canvas.addEventListener("touchend", e => {
       if (cornerTouchStart && Date.now() - cornerTouchStart >= 3000) {
-        unlockModal.style.display = "flex"; // show modal
-        setTimeout(() => {
-          if (unlockModal.style.display === "flex") {
-            unlockModal.style.display = "none";
-          }
-        }, 10000);
+        unlockModal.style.display = "flex";
+        setTimeout(() => { if (unlockModal.style.display === "flex") unlockModal.style.display = "none"; }, 10000);
       }
       cornerTouchStart = null;
     });
-
-    // Hold-to-exit logic
-    let holdTimer;
+    let exitHold;
     confirmExit.addEventListener("mousedown", () => {
-      holdTimer = setTimeout(() => {
+      exitHold = setTimeout(() => {
         unlockModal.style.display = "none";
         alert("✅ Baby Lock Disabled");
       }, 2000);
     });
-    confirmExit.addEventListener("mouseup", () => clearTimeout(holdTimer));
-    confirmExit.addEventListener("mouseleave", () => clearTimeout(holdTimer));
+    confirmExit.addEventListener("mouseup", () => clearTimeout(exitHold));
+    confirmExit.addEventListener("mouseleave", () => clearTimeout(exitHold));
 
-    // -------- Animation loop --------
+    // -------- Loop --------
     function loop() {
       ctx.clearRect(0, 0, width, height);
-
-      // update bubbles
-      for (let b of bubbles) {
-        b.update();
-        b.draw();
-      }
-
-      // update wheel
-      if (!wheel.dragging) {
-        wheel.angle += wheel.speed;
-        wheel.speed *= 0.98;
-      }
+      bubbles.forEach(b => { b.update(); b.draw(); });
+      if (!wheel.dragging) { wheel.angle += wheel.speed; wheel.speed *= 0.98; }
       drawWheel();
-
       requestAnimationFrame(loop);
     }
     loop();
