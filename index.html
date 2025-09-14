@@ -11,7 +11,8 @@
 
     #muteBtn {
       position:absolute; top:12px; right:12px; z-index:10;
-      padding:10px 16px; border:0; border-radius:20px; background:#fff;
+      padding:10px 16px; border:0; border-radius:20px; 
+      background:#222; color:#fff;
       box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
     }
     #volumeSlider {
@@ -41,7 +42,7 @@
   let audioCtx = null, masterGain = null, soundEnabled = true;
   let volume = parseFloat(volumeSlider.value);
 
-  const SCALE = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25]; // C D E F G A B C
+  const SCALE = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25];
   let wheelIndex = 0;
   let bubbleIndex = 0;
 
@@ -71,7 +72,6 @@
   let radius=120, angle=0, spinSpeed=0, friction=0.985;
   let lastSlice=null, lastSoundTime=0, glowPulse=0;
 
-  // single-pointer control (prevents multi-finger freeze)
   let activePointerId = null, isDragging=false, lastAngle=0, lastTime=0;
 
   function resizeCanvas(){
@@ -94,7 +94,6 @@
     glowPulse += 0.02;
     const pulse = 50 + Math.sin(glowPulse) * 10;
 
-    // outer halo
     ctx.beginPath();
     ctx.arc(0,0,radius+12,0,Math.PI*2);
     ctx.strokeStyle="white";
@@ -103,7 +102,6 @@
     ctx.shadowBlur=pulse*1.4;
     ctx.stroke();
 
-    // slices
     for(let i=0;i<colors.length;i++){
       ctx.beginPath();
       ctx.moveTo(0,0);
@@ -123,10 +121,10 @@
     const currentSlice = Math.floor((normalized / (2*Math.PI)) * colors.length);
 
     if(currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 120){
-      if(spinSpeed > 0){          // clockwise → forward through scale
+      if(spinSpeed > 0){
         playNote(SCALE[wheelIndex], "sine", 0.28, 0.18);
         wheelIndex = (wheelIndex + 1) % SCALE.length;
-      }else{                       // counterclockwise → backward through scale
+      }else{
         wheelIndex = (wheelIndex - 1 + SCALE.length) % SCALE.length;
         playNote(SCALE[wheelIndex], "triangle", 0.28, 0.18);
       }
@@ -140,8 +138,6 @@
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX ?? e.touches[0].clientX) - rect.left;
     const y = (e.clientY ?? e.touches[0].clientY) - rect.top;
-
-    // wheel area only & only first finger
     const dx = x - canvas.width/2, dy = y - canvas.height/2;
     if(Math.hypot(dx,dy) <= radius && activePointerId === null){
       activePointerId = id;
@@ -150,8 +146,6 @@
       lastTime = Date.now();
       spinSpeed = 0;
     }
-
-    // bubble pop (pop only one even if overlapped)
     popBubbleAt(x,y);
   }
   function pointerMove(e){
@@ -169,111 +163,75 @@
   }
   function pointerUp(e){
     const id = e.pointerId ?? (e.changedTouches && e.changedTouches[0].identifier);
-    if(id === activePointerId){
-      isDragging = false;
-      activePointerId = null;
-    }
+    if(id === activePointerId){ isDragging = false; activePointerId = null; }
   }
-
   canvas.addEventListener("pointerdown", pointerDown);
-  canvas.addEventListener("pointermove",  pointerMove);
-  canvas.addEventListener("pointerup",    pointerUp);
-  canvas.addEventListener("pointercancel",pointerUp);
+  canvas.addEventListener("pointermove", pointerMove);
+  canvas.addEventListener("pointerup", pointerUp);
+  canvas.addEventListener("pointercancel", pointerUp);
 
-  /* ---------- Bubbles (soap-film look) ---------- */
+  /* ---------- Bubbles ---------- */
   let bubbles = [];
+  const MAX_BUBBLES = 12;
 
   function createBubble(){
-    const r = 70 + Math.random()*20;
+    const r = 40 + Math.random()*20;
     const x = Math.random() * (canvas.width - r*2) + r;
-    const y = -r - Math.random()*canvas.height*0.3; // enter gradually from above
-    return {
-      x, y, r,
-      speed: 0.65 + Math.random()*0.9,
-      hue: Math.random()*360, // for shimmer
-      popped: false
-    };
+    const y = -r - Math.random()*canvas.height*0.3;
+    return { x,y,r, speed:0.9+Math.random()*1.2, hue:Math.random()*360, popped:false };
   }
-
-  // pop one bubble at click point & advance bubble scale
   function popBubbleAt(x,y){
     for(let i=0;i<bubbles.length;i++){
       const b = bubbles[i];
-      if(!b.popped && Math.hypot(b.x-x,b.y-y) < b.r){
+      if(!b.popped && Math.hypot(b.x-x,b.y-y)<b.r){
         b.popped = true;
-        // play next note in scale for bubbles
         playNote(SCALE[bubbleIndex], "sine", 0.24, 0.20);
         bubbleIndex = (bubbleIndex + 1) % SCALE.length;
-        // immediately respawn a fresh one
         bubbles[i] = createBubble();
-        break; // only one per click even if overlapped
+        break;
       }
     }
   }
-
-  // gentle rain, staggered spawn (no fireworks)
-  setInterval(()=>{
-    if(bubbles.length < 15){
-      bubbles.push(createBubble());
-    }
-  }, 1100);
+  setInterval(()=>{ if(bubbles.length < MAX_BUBBLES) bubbles.push(createBubble()); }, 900);
 
   function drawBubbles(){
     for(let i=0;i<bubbles.length;i++){
       const b = bubbles[i];
       if(b.popped) continue;
-
-      // shimmer the rim color a bit as it falls
-      b.hue = (b.hue + 0.5) % 360;
-
-      // rainbow soap-film gradient: clear center, colorful rim
-      const grad = ctx.createRadialGradient(b.x, b.y, b.r*0.18, b.x, b.y, b.r);
-      grad.addColorStop(0.00, "rgba(255,255,255,0.05)");
-      grad.addColorStop(0.60, `hsla(${b.hue},100%,75%,0.14)`);
-      grad.addColorStop(0.88, `hsla(${(b.hue+120)%360},100%,70%,0.35)`);
-      grad.addColorStop(1.00, "rgba(255,255,255,0.55)");
-
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-
+      b.hue=(b.hue+0.5)%360;
+      const grad = ctx.createRadialGradient(b.x,b.y,b.r*0.2,b.x,b.y,b.r);
+      grad.addColorStop(0,"rgba(255,255,255,0.05)");
+      grad.addColorStop(0.6,`hsla(${b.hue},100%,75%,0.15)`);
+      grad.addColorStop(0.9,`hsla(${(b.hue+120)%360},100%,70%,0.35)`);
+      grad.addColorStop(1,"rgba(255,255,255,0.55)");
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+      ctx.fillStyle=grad; ctx.fill();
       b.y += b.speed;
-      if(b.y - b.r > canvas.height){
-        bubbles[i] = createBubble(); // recycle from top
-      }
+      if(b.y - b.r > canvas.height) bubbles[i]=createBubble();
     }
   }
 
   /* ---------- UI ---------- */
-  muteBtn.onclick = () => {
-    soundEnabled = !soundEnabled;
-    muteBtn.textContent = soundEnabled ? "🔊 Sound On" : "🔇 Sound Off";
+  muteBtn.onclick=()=>{
+    soundEnabled=!soundEnabled;
+    muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
   };
-  volumeSlider.oninput = (e) => {
-    volume = parseFloat(e.target.value);
-    if(masterGain) masterGain.gain.value = volume;
+  volumeSlider.oninput=e=>{
+    volume=parseFloat(e.target.value);
+    if(masterGain) masterGain.gain.value=volume;
   };
 
   /* ---------- Loop ---------- */
   function animate(){
-    if(!isDragging){
-      angle += spinSpeed;
-      spinSpeed *= friction;
-    }
+    if(!isDragging){ angle+=spinSpeed; spinSpeed*=friction; }
     wheelSoundStep();
-
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawBubbles();
     drawWheel();
-
     requestAnimationFrame(animate);
   }
-
-  /* ---------- Start ---------- */
   resizeCanvas();
-  // seed a few so it isn't empty at start
-  for(let i=0;i<6;i++) bubbles.push(createBubble());
+  for(let i=0;i<MAX_BUBBLES/2;i++) bubbles.push(createBubble());
   animate();
   </script>
 </body>
