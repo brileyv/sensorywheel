@@ -10,12 +10,12 @@
     canvas { display:block; touch-action:none; }
 
     #controls {
-      position:absolute; right:12px; bottom:50px; /* moved up */
+      position:absolute; right:12px; bottom:50px;
       z-index:10;
       display:flex; flex-direction:column; align-items:flex-end; gap:10px;
     }
-    #muteBtn, #babyLockBtn {
-      padding:10px 16px; border:0; border-radius:20px; 
+    #volumeBtn {
+      padding:8px 14px; border:0; border-radius:16px; 
       background:#222; color:#fff;
       box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
     }
@@ -38,13 +38,12 @@
 </head>
 <body>
   <div id="controls">
-    <button id="muteBtn">🔊 Sound On</button>
+    <button id="volumeBtn">Volume</button>
     <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
-    <button id="babyLockBtn" style="display:none;">Enable Baby Lock</button>
   </div>
   <div id="instructions">
-    Hold volume button 3s for settings · Hold both top corners 3s to exit Baby Lock
+    Hold Volume 3s for settings · Hold both top corners 3s to exit Baby Lock
   </div>
   <div id="lockIcon">🔒</div>
   <canvas id="wheelCanvas"></canvas>
@@ -52,42 +51,31 @@
   <script>
   const canvas = document.getElementById("wheelCanvas");
   const ctx = canvas.getContext("2d");
-  const muteBtn = document.getElementById("muteBtn");
+  const volumeBtn = document.getElementById("volumeBtn");
   const volumeSlider = document.getElementById("volumeSlider");
   const upgradeBtn = document.getElementById("upgradeBtn");
-  const babyLockBtn = document.getElementById("babyLockBtn");
   const lockIcon = document.getElementById("lockIcon");
 
   /* ---------- Mock Upgrade ---------- */
   let upgraded = false;
+  let lockActive = false;
+
   upgradeBtn.onclick=()=>{
-    alert("Upgrade successful! Baby Lock enabled.");
+    alert("You're now ad-free, and Baby Lock is available!");
     upgraded = true;
     upgradeBtn.style.display = "none";
-    babyLockBtn.style.display = "block";
-  };
-
-  /* ---------- Baby Lock ---------- */
-  let lockActive = false;
-  babyLockBtn.onclick=()=>{
-    if(!lockActive){
-      lockActive = true;
-      babyLockBtn.textContent = "Disable Baby Lock";
-      lockIcon.style.display = "block";
-      if (document.body.requestFullscreen) {
-        document.body.requestFullscreen(); // mimic fullscreen lock for web
-      }
-      if (typeof Android !== "undefined" && Android.startLockTask) {
-        Android.startLockTask(); // real Android pinned mode
-      }
-    } else {
-      disableBabyLock();
+    lockActive = true;
+    lockIcon.style.display = "block";
+    if (document.body.requestFullscreen) {
+      document.body.requestFullscreen();
+    }
+    if (typeof Android !== "undefined" && Android.startLockTask) {
+      Android.startLockTask();
     }
   };
 
   function disableBabyLock(){
     lockActive = false;
-    babyLockBtn.textContent = "Enable Baby Lock";
     lockIcon.style.display = "none";
     if (document.exitFullscreen) document.exitFullscreen();
     if (typeof Android !== "undefined" && Android.stopLockTask) {
@@ -98,10 +86,9 @@
   // Parent unlock gesture: hold both top corners
   let cornerTouches = {};
   let cornerTimer = null;
-
   canvas.addEventListener("touchstart",(e)=>{
     for(const t of e.touches){
-      if(t.clientY < 80){ // top 80px
+      if(t.clientY < 80){
         if(t.clientX < 80) cornerTouches.left = true;
         if(t.clientX > window.innerWidth-80) cornerTouches.right = true;
       }
@@ -149,7 +136,6 @@
   const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
   let radius=120, angle=0, spinSpeed=0, friction=0.985;
   let lastSlice=null, lastSoundTime=0, glowPulse=0;
-
   let activePointerId = null, isDragging=false, lastAngle=0, lastTime=0;
 
   function resizeCanvas(){
@@ -290,22 +276,28 @@
   }
 
   /* ---------- Volume Unlock ---------- */
-  muteBtn.onclick=()=>{
-    soundEnabled=!soundEnabled;
-    muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
-  };
-  let holdTimeout;
-  muteBtn.addEventListener("mousedown",()=>{ 
+  let holdTimeout, hideTimeout;
+  volumeBtn.addEventListener("mousedown",()=>{ 
     holdTimeout=setTimeout(()=>{ 
-      volumeSlider.style.display = (volumeSlider.style.display==="none"?"block":"none");
+      if(volumeSlider.style.display==="none"){
+        volumeSlider.style.display="block";
+        // auto-hide after 5s
+        clearTimeout(hideTimeout);
+        hideTimeout=setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
+      } else {
+        volumeSlider.style.display="none";
+        soundEnabled=!soundEnabled;
+      }
     },3000);
   });
-  muteBtn.addEventListener("mouseup",()=>clearTimeout(holdTimeout));
-  muteBtn.addEventListener("mouseleave",()=>clearTimeout(holdTimeout));
+  volumeBtn.addEventListener("mouseup",()=>clearTimeout(holdTimeout));
+  volumeBtn.addEventListener("mouseleave",()=>clearTimeout(holdTimeout));
 
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
+    clearTimeout(hideTimeout);
+    hideTimeout=setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
   };
 
   /* ---------- Loop ---------- */
