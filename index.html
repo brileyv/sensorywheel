@@ -14,12 +14,6 @@
       z-index:10;
       display:flex; flex-direction:column; align-items:flex-end; gap:10px;
     }
-    #volumeBtn {
-      padding:8px 14px; border:0; border-radius:16px; 
-      background:#222; color:#fff;
-      box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
-    }
-    #volumeSlider { width:160px; display:none; }
     #upgradeBtn {
       padding:12px 18px; border:0; border-radius:28px;
       background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
@@ -35,25 +29,27 @@
       position:absolute; top:10px; left:10px; font-size:22px;
       color:#fff; opacity:0.6; display:none; pointer-events:none;
     }
+    #volumeSlider {
+      position:absolute; top:40px; left:10px; width:160px;
+      display:none;
+    }
   </style>
 </head>
 <body>
   <div id="controls">
-    <button id="volumeBtn">Volume</button>
-    <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
   </div>
   <div id="instructions">
-    Hold Volume 3s for settings<br/>
+    Press top left corner 3s for volume settings<br/>
     Hold both top corners 3s to exit Baby Lock
   </div>
   <div id="lockIcon">🔒</div>
+  <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
   <canvas id="wheelCanvas"></canvas>
 
   <script>
   const canvas = document.getElementById("wheelCanvas");
   const ctx = canvas.getContext("2d");
-  const volumeBtn = document.getElementById("volumeBtn");
   const volumeSlider = document.getElementById("volumeSlider");
   const upgradeBtn = document.getElementById("upgradeBtn");
   const lockIcon = document.getElementById("lockIcon");
@@ -95,9 +91,22 @@
         if(t.clientX > window.innerWidth-80) cornerTouches.right = true;
       }
     }
+    // Top corners both = disable lock
     if(cornerTouches.left && cornerTouches.right && lockActive){
       if(!cornerTimer){
         cornerTimer = setTimeout(()=>{ disableBabyLock(); },3000);
+      }
+    }
+    // Only top-left corner = show volume slider
+    if(cornerTouches.left && !cornerTouches.right){
+      if(!cornerTimer){
+        cornerTimer = setTimeout(()=>{ 
+          volumeSlider.style.display = (volumeSlider.style.display==="none" ? "block" : "none");
+          // auto-hide after 5s
+          if(volumeSlider.style.display==="block"){
+            setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
+          }
+        },3000);
       }
     }
   });
@@ -277,35 +286,10 @@
     }
   }
 
-  /* ---------- Volume Unlock ---------- */
-  let holdTimeout, hideTimeout;
-  function startHold(){
-    holdTimeout=setTimeout(()=>{ 
-      if(volumeSlider.style.display==="none"){
-        volumeSlider.style.display="block";
-        clearTimeout(hideTimeout);
-        hideTimeout=setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
-      } else {
-        volumeSlider.style.display="none";
-        soundEnabled=!soundEnabled;
-      }
-    },3000);
-  }
-  function cancelHold(){ clearTimeout(holdTimeout); }
-
-  volumeBtn.addEventListener("mousedown", startHold);
-  volumeBtn.addEventListener("mouseup", cancelHold);
-  volumeBtn.addEventListener("mouseleave", cancelHold);
-
-  // Mobile support
-  volumeBtn.addEventListener("touchstart", startHold);
-  volumeBtn.addEventListener("touchend", cancelHold);
-
+  /* ---------- Volume from top-left corner ---------- */
   volumeSlider.oninput=e=>{
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
-    clearTimeout(hideTimeout);
-    hideTimeout=setTimeout(()=>{ volumeSlider.style.display="none"; },5000);
   };
 
   /* ---------- Loop ---------- */
