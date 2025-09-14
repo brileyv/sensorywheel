@@ -9,25 +9,23 @@
     body { margin:0; background:#0a0011; overflow:hidden; font-family: system-ui, sans-serif; }
     canvas { display:block; touch-action:none; }
 
+    /* Upgrade button area */
     #controls {
-      position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
-      display:flex; flex-direction:column; align-items:center; gap:10px;
-      z-index:10;
+      position:absolute; bottom:54px; left:0; right:0;
+      display:flex; justify-content:center; z-index:10;
     }
     #upgradeBtn {
-      padding:12px 18px; border:0; border-radius:28px;
-      background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
-      box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
+      padding:14px 22px; border:0; border-radius:28px;
+      background:linear-gradient(90deg,#6a5acd,#ff69b4); 
+      color:#fff; font-weight:600; font-size:15px;
+      box-shadow:0 6px 18px rgba(0,0,0,.35);
+      text-align:center;
     }
+
     #instructions {
-      position:absolute; bottom:6px; left:0; right:0;
-      text-align:center; font-size:12px; color:rgba(255,255,255,0.5);
-      pointer-events:none;
-      line-height:1.4;
-    }
-    #lockIcon {
-      position:absolute; top:10px; left:10px; font-size:22px;
-      color:#fff; opacity:0.6; display:none; pointer-events:none;
+      position:absolute; bottom:8px; left:0; right:0;
+      text-align:center; font-size:12px; color:rgba(255,255,255,0.6);
+      pointer-events:none; line-height:1.4;
     }
 
     /* Volume Panel */
@@ -58,20 +56,16 @@
     <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
   </div>
   <div id="instructions">
-    Press top left corner 3s for volume settings<br/>
+    Press top left corner 3s for volume settings<br>
     Hold both top corners 3s to exit Baby Lock
   </div>
-  <div id="lockIcon">🔒</div>
-
-  <!-- Volume Panel -->
   <div id="volumePanel">
     <div id="volumeRow">
       <button id="volumeToggle">🔊</button>
       <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
-      <button id="closeVolume">✕</button>
+      <button id="closeVolume">✖</button>
     </div>
   </div>
-
   <canvas id="wheelCanvas"></canvas>
 
   <script>
@@ -82,14 +76,12 @@
   const volumeToggle = document.getElementById("volumeToggle");
   const volumeSlider = document.getElementById("volumeSlider");
   const closeVolume = document.getElementById("closeVolume");
-  const lockIcon = document.getElementById("lockIcon");
 
   /* ---------- Mock Upgrade ---------- */
   let upgraded = false;
   upgradeBtn.onclick=()=>{
-    alert("You're now ad-free, and Baby Lock is available!");
+    alert("You’re now ad-free, and Baby Lock is available!");
     upgraded = true;
-    upgradeBtn.style.display = "none";
   };
 
   /* ---------- Audio ---------- */
@@ -265,22 +257,13 @@
     }
   }
 
-  /* ---------- Volume Settings ---------- */
-  let cornerTimer = null;
-  canvas.addEventListener("touchstart",(e)=>{
-    for(const t of e.touches){
-      if(t.clientY < 80 && t.clientX < 80){ // top-left corner
-        if(!cornerTimer){
-          cornerTimer = setTimeout(()=>{
-            volumePanel.style.display = "flex";
-          },3000);
-        }
-      }
-    }
-  });
-  canvas.addEventListener("touchend",()=>{
-    clearTimeout(cornerTimer); cornerTimer=null;
-  });
+  /* ---------- Volume Panel ---------- */
+  function openVolume(){
+    volumePanel.style.display="flex";
+  }
+  function closeVolumePanel(){
+    volumePanel.style.display="none";
+  }
 
   volumeToggle.onclick=()=>{
     soundEnabled=!soundEnabled;
@@ -290,7 +273,16 @@
     volume=parseFloat(e.target.value);
     if(masterGain) masterGain.gain.value=volume;
   };
-  closeVolume.onclick=()=>{ volumePanel.style.display="none"; };
+  closeVolume.onclick=closeVolumePanel;
+
+  // Unlock gesture top-left
+  canvas.addEventListener("touchstart",(e)=>{
+    for(const t of e.touches){
+      if(t.clientY < 80 && t.clientX < 80){
+        setTimeout(()=>{ openVolume(); },3000);
+      }
+    }
+  });
 
   /* ---------- Loop ---------- */
   function animate(){
