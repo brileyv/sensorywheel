@@ -1,202 +1,238 @@
-<script>
-const canvas = document.getElementById("wheelCanvas");
-const ctx = canvas.getContext("2d");
-const muteBtn = document.getElementById("muteBtn");
-const volumeSlider = document.getElementById("volumeSlider");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spin Sensory Wheel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; background:#0a0011; overflow:hidden; font-family: system-ui, sans-serif; }
+    canvas { display:block; touch-action:none; }
 
-/* ---------- Audio ---------- */
-let audioCtx = null, masterGain = null, soundEnabled = true;
-let volume = parseFloat(volumeSlider.value);
+    #muteBtn {
+      position:absolute; top:12px; right:12px; z-index:10;
+      padding:10px 16px; border:0; border-radius:20px; 
+      background:#222; color:#fff;
+      box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; cursor:pointer;
+    }
+    #volumeSlider {
+      position:absolute; top:56px; right:12px; width:160px; z-index:10;
+    }
+    #upgradeBtn {
+      position:absolute; right:12px; bottom:14px; z-index:10;
+      padding:12px 18px; border:0; border-radius:28px;
+      background:linear-gradient(90deg,#6a5acd,#ff69b4); color:#fff;
+      box-shadow:0 6px 18px rgba(0,0,0,.35); font-weight:600; font-size:14px;
+    }
+  </style>
+</head>
+<body>
+  <button id="muteBtn">🔊 Sound On</button>
+  <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.6" />
+  <button id="upgradeBtn">Upgrade for Baby Lock + No Ads · $5 for Life</button>
+  <canvas id="wheelCanvas"></canvas>
 
-const SCALE = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25];
-let wheelIndex = 0;
-let bubbleIndex = 0;
+  <script>
+  const canvas = document.getElementById("wheelCanvas");
+  const ctx = canvas.getContext("2d");
+  const muteBtn = document.getElementById("muteBtn");
+  const volumeSlider = document.getElementById("volumeSlider");
 
-function ensureAudio(){
-  if(!audioCtx){
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = volume;
-    masterGain.connect(audioCtx.destination);
+  /* ---------- Audio ---------- */
+  let audioCtx = null, masterGain = null, soundEnabled = true;
+  let volume = parseFloat(volumeSlider.value);
+
+  const SCALE = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25];
+  let wheelIndex = 0;
+  let bubbleIndex = 0;
+
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = volume;
+      masterGain.connect(audioCtx.destination);
+    }
   }
-}
-function playNote(freq, dur=0.32, gainStart=0.22){
-  if(!soundEnabled) return;
-  ensureAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = "sine"; // always sine for both directions
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  gain.gain.setValueAtTime(gainStart, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-  osc.connect(gain); gain.connect(masterGain);
-  osc.start(); osc.stop(audioCtx.currentTime + dur);
-}
+  function playNote(freq, dur=0.32){
+    if(!soundEnabled) return;
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine"; // same tone both directions
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.22, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(gain); gain.connect(masterGain);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  }
 
-/* ---------- Wheel ---------- */
-const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
-let radius=120, angle=0, spinSpeed=0, friction=0.985;
-let lastSlice=null, lastSoundTime=0, glowPulse=0;
+  /* ---------- Wheel ---------- */
+  const colors=["#ff007f","#ff7f00","#ffff00","#00ff00","#00ffff","#0000ff","#8b00ff"];
+  let radius=120, angle=0, spinSpeed=0, friction=0.985;
+  let lastSlice=null, lastSoundTime=0, glowPulse=0;
 
-let activePointerId = null, isDragging=false, lastAngle=0, lastTime=0;
+  let activePointerId = null, isDragging=false, lastAngle=0, lastTime=0;
 
-function resizeCanvas(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  radius = Math.min(canvas.width, canvas.height) * 0.45;
-}
-window.addEventListener("resize", resizeCanvas);
+  function resizeCanvas(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    radius = Math.min(canvas.width, canvas.height) * 0.45;
+  }
+  window.addEventListener("resize", resizeCanvas);
 
-function getPointerAngle(x, y){
-  const cx = canvas.width/2, cy = canvas.height/2;
-  return Math.atan2(y - cy, x - cx);
-}
+  function getPointerAngle(x, y){
+    const cx = canvas.width/2, cy = canvas.height/2;
+    return Math.atan2(y - cy, x - cx);
+  }
 
-function drawWheel(){
-  ctx.save();
-  ctx.translate(canvas.width/2, canvas.height/2);
-  ctx.rotate(angle);
+  function drawWheel(){
+    ctx.save();
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.rotate(angle);
 
-  glowPulse += 0.02;
-  const pulse = 50 + Math.sin(glowPulse) * 10;
+    glowPulse += 0.02;
+    const pulse = 50 + Math.sin(glowPulse) * 10;
 
-  ctx.beginPath();
-  ctx.arc(0,0,radius+12,0,Math.PI*2);
-  ctx.strokeStyle="white";
-  ctx.lineWidth=4;
-  ctx.shadowColor="white";
-  ctx.shadowBlur=pulse*1.4;
-  ctx.stroke();
-
-  for(let i=0;i<colors.length;i++){
     ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,radius,(i*2*Math.PI)/colors.length,((i+1)*2*Math.PI)/colors.length);
-    ctx.closePath();
-    ctx.fillStyle=colors[i];
-    ctx.shadowColor=colors[i];
-    ctx.shadowBlur=pulse;
-    ctx.fill();
-  }
-  ctx.restore();
-}
+    ctx.arc(0,0,radius+12,0,Math.PI*2);
+    ctx.strokeStyle="white";
+    ctx.lineWidth=4;
+    ctx.shadowColor="white";
+    ctx.shadowBlur=pulse*1.4;
+    ctx.stroke();
 
-function wheelSoundStep(){
-  const now = performance.now();
-  const normalized = ((angle % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
-  const currentSlice = Math.floor((normalized / (2*Math.PI)) * colors.length);
-
-  if(currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 120){
-    if(spinSpeed > 0){
-      playNote(SCALE[wheelIndex], 0.28, 0.18); // forward
-      wheelIndex = (wheelIndex + 1) % SCALE.length;
-    } else {
-      wheelIndex = (wheelIndex - 1 + SCALE.length) % SCALE.length; // backward
-      playNote(SCALE[wheelIndex], 0.28, 0.18);
+    for(let i=0;i<colors.length;i++){
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.arc(0,0,radius,(i*2*Math.PI)/colors.length,((i+1)*2*Math.PI)/colors.length);
+      ctx.closePath();
+      ctx.fillStyle=colors[i];
+      ctx.shadowColor=colors[i];
+      ctx.shadowBlur=pulse;
+      ctx.fill();
     }
-    lastSlice = currentSlice;
-    lastSoundTime = now;
+    ctx.restore();
   }
-}
 
-function pointerDown(e){
-  const id = e.pointerId ?? (e.changedTouches && e.changedTouches[0].identifier);
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX ?? e.touches[0].clientX) - rect.left;
-  const y = (e.clientY ?? e.touches[0].clientY) - rect.top;
-  const dx = x - canvas.width/2, dy = y - canvas.height/2;
-  if(Math.hypot(dx,dy) <= radius && activePointerId === null){
-    activePointerId = id;
-    isDragging = true;
-    lastAngle = getPointerAngle(x,y);
-    lastTime = Date.now();
-    spinSpeed = 0;
-  }
-  popBubbleAt(x,y);
-}
-function pointerMove(e){
-  const id = e.pointerId ?? (e.touches && e.touches[0].identifier);
-  if(!isDragging || id !== activePointerId) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX ?? e.touches[0].clientX) - rect.left;
-  const y = (e.clientY ?? e.touches[0].clientY) - rect.top;
-  const a = getPointerAngle(x,y);
-  const now = Date.now();
-  const delta = a - lastAngle;
-  angle += delta;
-  spinSpeed = delta / ((now - lastTime)/1000);
-  lastAngle = a; lastTime = now;
-}
-function pointerUp(e){
-  const id = e.pointerId ?? (e.changedTouches && e.changedTouches[0].identifier);
-  if(id === activePointerId){ isDragging = false; activePointerId = null; }
-}
-canvas.addEventListener("pointerdown", pointerDown);
-canvas.addEventListener("pointermove", pointerMove);
-canvas.addEventListener("pointerup", pointerUp);
-canvas.addEventListener("pointercancel", pointerUp);
+  function wheelSoundStep(){
+    const now = performance.now();
+    const normalized = ((angle % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+    const currentSlice = Math.floor((normalized / (2*Math.PI)) * colors.length);
 
-/* ---------- Bubbles ---------- */
-let bubbles = [];
-const MAX_BUBBLES = 12;
-
-function createBubble(){
-  const r = 40 + Math.random()*20;
-  const x = Math.random() * (canvas.width - r*2) + r;
-  const y = -r - Math.random()*canvas.height*0.3;
-  return { x,y,r, speed:0.5+Math.random()*0.8, hue:Math.random()*360, popped:false }; // slower
-}
-function popBubbleAt(x,y){
-  for(let i=0;i<bubbles.length;i++){
-    const b = bubbles[i];
-    if(!b.popped && Math.hypot(b.x-x,b.y-y)<b.r){
-      b.popped = true;
-      playNote(SCALE[bubbleIndex], 0.24, 0.20);
-      bubbleIndex = (bubbleIndex + 1) % SCALE.length;
-      bubbles[i] = createBubble();
-      break;
+    if(currentSlice !== lastSlice && Math.abs(spinSpeed) > 0.05 && now - lastSoundTime > 120){
+      if(spinSpeed > 0){
+        playNote(SCALE[wheelIndex], 0.28); // forward
+        wheelIndex = (wheelIndex + 1) % SCALE.length;
+      } else {
+        wheelIndex = (wheelIndex - 1 + SCALE.length) % SCALE.length; // backward
+        playNote(SCALE[wheelIndex], 0.28);
+      }
+      lastSlice = currentSlice;
+      lastSoundTime = now;
     }
   }
-}
-setInterval(()=>{ if(bubbles.length < MAX_BUBBLES) bubbles.push(createBubble()); }, 1000);
 
-function drawBubbles(){
-  for(let i=0;i<bubbles.length;i++){
-    const b = bubbles[i];
-    if(b.popped) continue;
-    b.hue=(b.hue+0.5)%360;
-    const grad = ctx.createRadialGradient(b.x,b.y,b.r*0.2,b.x,b.y,b.r);
-    grad.addColorStop(0,"rgba(255,255,255,0.05)");
-    grad.addColorStop(0.6,`hsla(${b.hue},100%,75%,0.15)`);
-    grad.addColorStop(0.9,`hsla(${(b.hue+120)%360},100%,70%,0.35)`);
-    grad.addColorStop(1,"rgba(255,255,255,0.55)");
-    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
-    ctx.fillStyle=grad; ctx.fill();
-    b.y += b.speed;
-    if(b.y - b.r > canvas.height) bubbles[i]=createBubble();
+  function pointerDown(e){
+    const id = e.pointerId ?? (e.changedTouches && e.changedTouches[0].identifier);
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX ?? e.touches[0].clientX) - rect.left;
+    const y = (e.clientY ?? e.touches[0].clientY) - rect.top;
+    const dx = x - canvas.width/2, dy = y - canvas.height/2;
+    if(Math.hypot(dx,dy) <= radius && activePointerId === null){
+      activePointerId = id;
+      isDragging = true;
+      lastAngle = getPointerAngle(x,y);
+      lastTime = Date.now();
+      spinSpeed = 0;
+    }
+    popBubbleAt(x,y);
   }
-}
+  function pointerMove(e){
+    const id = e.pointerId ?? (e.touches && e.touches[0].identifier);
+    if(!isDragging || id !== activePointerId) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX ?? e.touches[0].clientX) - rect.left;
+    const y = (e.clientY ?? e.touches[0].clientY) - rect.top;
+    const a = getPointerAngle(x,y);
+    const now = Date.now();
+    const delta = a - lastAngle;
+    angle += delta;
+    spinSpeed = delta / ((now - lastTime)/1000);
+    lastAngle = a; lastTime = now;
+  }
+  function pointerUp(e){
+    const id = e.pointerId ?? (e.changedTouches && e.changedTouches[0].identifier);
+    if(id === activePointerId){ isDragging = false; activePointerId = null; }
+  }
+  canvas.addEventListener("pointerdown", pointerDown);
+  canvas.addEventListener("pointermove", pointerMove);
+  canvas.addEventListener("pointerup", pointerUp);
+  canvas.addEventListener("pointercancel", pointerUp);
 
-/* ---------- UI ---------- */
-muteBtn.onclick=()=>{
-  soundEnabled=!soundEnabled;
-  muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
-};
-volumeSlider.oninput=e=>{
-  volume=parseFloat(e.target.value);
-  if(masterGain) masterGain.gain.value=volume;
-};
+  /* ---------- Bubbles ---------- */
+  let bubbles = [];
+  const MAX_BUBBLES = 12;
 
-/* ---------- Loop ---------- */
-function animate(){
-  if(!isDragging){ angle+=spinSpeed; spinSpeed*=friction; }
-  wheelSoundStep();
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawBubbles();
-  drawWheel();
-  requestAnimationFrame(animate);
-}
-resizeCanvas();
-for(let i=0;i<MAX_BUBBLES/2;i++) bubbles.push(createBubble());
-animate();
-</script>
+  function createBubble(){
+    const r = 40 + Math.random()*20;
+    const x = Math.random() * (canvas.width - r*2) + r;
+    const y = -r - Math.random()*canvas.height*0.3;
+    return { x,y,r, speed:0.5+Math.random()*0.6, hue:Math.random()*360, popped:false }; // slower
+  }
+  function popBubbleAt(x,y){
+    for(let i=0;i<bubbles.length;i++){
+      const b = bubbles[i];
+      if(!b.popped && Math.hypot(b.x-x,b.y-y)<b.r){
+        b.popped = true;
+        playNote(SCALE[bubbleIndex], 0.24);
+        bubbleIndex = (bubbleIndex + 1) % SCALE.length;
+        bubbles[i] = createBubble();
+        break;
+      }
+    }
+  }
+  setInterval(()=>{ if(bubbles.length < MAX_BUBBLES) bubbles.push(createBubble()); }, 1000);
+
+  function drawBubbles(){
+    for(let i=0;i<bubbles.length;i++){
+      const b = bubbles[i];
+      if(b.popped) continue;
+      b.hue=(b.hue+0.5)%360;
+      const grad = ctx.createRadialGradient(b.x,b.y,b.r*0.2,b.x,b.y,b.r);
+      grad.addColorStop(0,"rgba(255,255,255,0.05)");
+      grad.addColorStop(0.6,`hsla(${b.hue},100%,75%,0.15)`);
+      grad.addColorStop(0.9,`hsla(${(b.hue+120)%360},100%,70%,0.35)`);
+      grad.addColorStop(1,"rgba(255,255,255,0.55)");
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+      ctx.fillStyle=grad; ctx.fill();
+      b.y += b.speed;
+      if(b.y - b.r > canvas.height) bubbles[i]=createBubble();
+    }
+  }
+
+  /* ---------- UI ---------- */
+  muteBtn.onclick=()=>{
+    soundEnabled=!soundEnabled;
+    muteBtn.textContent=soundEnabled?"🔊 Sound On":"🔇 Sound Off";
+  };
+  volumeSlider.oninput=e=>{
+    volume=parseFloat(e.target.value);
+    if(masterGain) masterGain.gain.value=volume;
+  };
+
+  /* ---------- Loop ---------- */
+  function animate(){
+    if(!isDragging){ angle+=spinSpeed; spinSpeed*=friction; }
+    wheelSoundStep();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawBubbles();
+    drawWheel();
+    requestAnimationFrame(animate);
+  }
+  resizeCanvas();
+  for(let i=0;i<MAX_BUBBLES/2;i++) bubbles.push(createBubble());
+  animate();
+  </script>
+</body>
+</html>
